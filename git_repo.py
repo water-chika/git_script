@@ -3,8 +3,9 @@
 import pathlib
 import os
 import argparse
+from urllib.parse import urljoin
 
-repo_dir = pathlib.Path('/tmp/repo')
+repo_dir = pathlib.Path('E:/')
 
 def parse_submodules(path):
     submodules = []
@@ -38,6 +39,13 @@ def parse_submodules(path):
     except:
         print('parse submodules fail')
     return submodules
+
+def resolve_url(url):
+    while ".." in url:
+        loc = url.find("..")
+        prev = url.rfind("/", 0, loc-1)
+        url = url[:prev] + url[loc+2:]
+    return url
 
 def get_repo(url):
     name = pathlib.Path(url).name
@@ -79,7 +87,7 @@ def fun(url, worktree, recursive):
         'git -C {} worktree add -f -B {} {}'
             .format(
                repo,
-               "t" + str(worktree).replace(':',""),
+               "t" + str(worktree).replace(':',"").replace('\\','/'),
                worktree
            )
     )
@@ -92,6 +100,12 @@ def fun(url, worktree, recursive):
                 submodules = parse_submodules('.gitmodules')
                 for submodule in submodules:
                     print('recursive', submodule)
+                    if submodule["url"].startswith('../'):
+                        submodule["url"] = url + "/" + submodule["url"]
+                        print(submodule["url"])
+                    if ".." in submodule["url"]:
+                        submodule["url"] = resolve_url(submodule["url"])
+                        print(submodule["url"])
                     fun(submodule["url"], submodule["path"], recursive)
                     os.system('git submodule update --init {}'.format(submodule["path"]))
         finally:
