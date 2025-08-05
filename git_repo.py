@@ -108,15 +108,16 @@ def fun(url, worktree, recursive):
                         print(submodule["url"])
                     fun(submodule["url"], submodule["path"], recursive)
                     os.system('git submodule update --init {}'.format(submodule["path"]))
+                    fun(submodule["url"], submodule["path"], recursive)
         finally:
             os.chdir(orig_wd)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
-    parser.add_argument('worktree', type=str)
-    parser.add_argument('recursive', type=bool, default=False)
+    parser.add_argument('--worktree', type=str, default=None)
+    parser.add_argument('--recursive', type=bool, default=False)
     args = parser.parse_args()
     fun(args.url,
-        pathlib.Path(args.worktree).absolute(),
+        args.worktree,
         args.recursive)
