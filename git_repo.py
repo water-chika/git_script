@@ -81,6 +81,7 @@ def fun(url, worktree, recursive):
 
     if not repo.exists():
         os.system('git clone --bare {} {} --progress'.format(url, repo))
+        os.system('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
     else:
         os.system('git -C {} worktree prune'.format(repo))
     os.system(
