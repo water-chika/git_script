@@ -3,9 +3,8 @@
 import pathlib
 import os
 import argparse
+import json
 from urllib.parse import urljoin
-
-repo_dir = pathlib.Path('E:/')
 
 def run(*args):
     print(*args)
@@ -51,7 +50,7 @@ def resolve_url(url):
         url = url[:prev] + url[loc+2:]
     return url
 
-def get_repo(url):
+def get_repo(url, repo_dir):
     name = pathlib.Path(url).name
     repo = repo_dir / name
     repo_index = 0
@@ -75,9 +74,9 @@ def get_repo(url):
             repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
-def fun(url, worktree, recursive):
+def fun(url, worktree, recursive, repo_dir):
     name = pathlib.Path(url).name
-    repo = get_repo(url)
+    repo = get_repo(url, repo_dir)
     if worktree == None:
         worktree = pathlib.Path(name).absolute()
     else:
@@ -122,6 +121,17 @@ if __name__ == '__main__':
     parser.add_argument('--worktree', type=str, default=None)
     parser.add_argument('--recursive', type=bool, default=False)
     args = parser.parse_args()
+
+    config = None
+    config_file = pathlib.Path(os.path.abspath(__file__)).parent / "config.json"
+    if not config_file.exists():
+        print("config file not exist!")
+    else:
+        with open(config_file, "r") as config_file:
+            config = json.load(config_file)
+    assert(config != None)
+    repo_dir = pathlib.Path(config["repo_dir"]).absolute()
+
     fun(args.url,
         args.worktree,
-        args.recursive)
+        args.recursive, repo_dir=repo_dir)
