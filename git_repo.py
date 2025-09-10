@@ -43,6 +43,25 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
+def for_submodules(submodules, recursive, repo_dir):
+    for submodule in submodules:
+        print('recursive', submodule)
+        if submodule["url"].startswith('../'):
+            submodule["url"] = url + "/" + submodule["url"]
+            print(submodule["url"])
+        if ".." in submodule["url"]:
+            submodule["url"] = resolve_url(submodule["url"])
+            print(submodule["url"])
+        fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir)
+        run('git submodule update --init {}'.format(submodule["path"]))
+        fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir)
+
+def update_submodules(recursive, repo_dir):
+    assert(pathlib.Path('.git').exists())
+    if pathlib.Path('.gitmodules').exists():
+        submodules = parse_submodules('.gitmodules')
+        for_submodules(submodules, recursive, repo_dir=repo_dir)
+
 def resolve_url(url):
     while ".." in url:
         loc = url.find("..")
@@ -99,19 +118,7 @@ def fun(url, worktree, recursive, repo_dir):
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
-            if pathlib.Path('.gitmodules').exists():
-                submodules = parse_submodules('.gitmodules')
-                for submodule in submodules:
-                    print('recursive', submodule)
-                    if submodule["url"].startswith('../'):
-                        submodule["url"] = url + "/" + submodule["url"]
-                        print(submodule["url"])
-                    if ".." in submodule["url"]:
-                        submodule["url"] = resolve_url(submodule["url"])
-                        print(submodule["url"])
-                    fun(submodule["url"], submodule["path"], recursive)
-                    run('git submodule update --init {}'.format(submodule["path"]))
-                    fun(submodule["url"], submodule["path"], recursive)
+            update_submodules(recursive, repo_dir=repo_dir)
         finally:
             os.chdir(orig_wd)
 
@@ -123,7 +130,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = None
-    config_file = pathlib.Path(os.path.abspath(__file__)).parent / "config.json"
+    config_file = pathlib.Path(os.path.abspath(__file__)).resolve().parent / "config.json"
     if not config_file.exists():
         print("config file not exist!")
     else:
