@@ -94,12 +94,7 @@ def get_repo(url, repo_dir):
     return repo
 
 def fun(url, worktree, recursive, repo_dir):
-    name = pathlib.Path(url).name
     repo = get_repo(url, repo_dir)
-    if worktree == None:
-        worktree = pathlib.Path(name).absolute()
-    else:
-        worktree = pathlib.Path(worktree).absolute()
     if not repo.exists():
         run('git clone --bare {} {} --progress'.format(url, repo))
         run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
@@ -139,6 +134,14 @@ if __name__ == '__main__':
     assert(config != None)
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
 
-    fun(args.url,
-        args.worktree,
-        args.recursive, repo_dir=repo_dir)
+    config["url"] = args.url
+    if args.worktree == None:
+        name = pathlib.Path(args.url).name
+        config["worktree"] = pathlib.Path(name).absolute()
+    else:
+        config["worktree"] = pathlib.Path(worktree).absolute()
+    config["recursive"] = args.recursive
+    config["repo_dir"] = repo_dir
+    print(config)
+
+    fun(**config)
