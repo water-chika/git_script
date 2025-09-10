@@ -7,6 +7,10 @@ from urllib.parse import urljoin
 
 repo_dir = pathlib.Path('E:/')
 
+def run(*args):
+    print(*args)
+    os.system(*args)
+
 def parse_submodules(path):
     submodules = []
     try:
@@ -75,16 +79,15 @@ def fun(url, worktree, recursive):
     name = pathlib.Path(url).name
     repo = get_repo(url)
     if worktree == None:
-        worktree = pathlib.Path(name).resolve()
+        worktree = pathlib.Path(name).absolute()
     else:
-        worktree = pathlib.Path(worktree).resolve()
-
+        worktree = pathlib.Path(worktree).absolute()
     if not repo.exists():
-        os.system('git clone --bare {} {} --progress'.format(url, repo))
-        os.system('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
+        run('git clone --bare {} {} --progress'.format(url, repo))
+        run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
     else:
-        os.system('git -C {} worktree prune'.format(repo))
-    os.system(
+        run('git -C {} worktree prune'.format(repo))
+    run(
         'git -C {} worktree add -f -B {} {}'
             .format(
                repo,
@@ -108,7 +111,7 @@ def fun(url, worktree, recursive):
                         submodule["url"] = resolve_url(submodule["url"])
                         print(submodule["url"])
                     fun(submodule["url"], submodule["path"], recursive)
-                    os.system('git submodule update --init {}'.format(submodule["path"]))
+                    run('git submodule update --init {}'.format(submodule["path"]))
                     fun(submodule["url"], submodule["path"], recursive)
         finally:
             os.chdir(orig_wd)
