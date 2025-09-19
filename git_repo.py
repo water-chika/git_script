@@ -94,6 +94,7 @@ def get_repo(url, repo_dir):
     return repo
 
 def fun(url, worktree, recursive, repo_dir):
+    worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
     if not repo.exists():
         run('git clone --bare {} {} --progress'.format(url, repo))
