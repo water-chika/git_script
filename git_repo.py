@@ -140,7 +140,7 @@ if __name__ == '__main__':
         name = pathlib.Path(args.url).name
         config["worktree"] = pathlib.Path(name).absolute()
     else:
-        config["worktree"] = pathlib.Path(worktree).absolute()
+        config["worktree"] = pathlib.Path(args.worktree).absolute()
     config["recursive"] = args.recursive
     config["repo_dir"] = repo_dir
     print(config)
