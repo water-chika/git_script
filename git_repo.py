@@ -43,11 +43,11 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
-def for_submodules(submodules, recursive, repo_dir):
+def for_submodules(submodules, recursive, repo_dir, parent_url):
     for submodule in submodules:
         print('recursive', submodule)
         if submodule["url"].startswith('../'):
-            submodule["url"] = url + "/" + submodule["url"]
+            submodule["url"] = parent_url + "/" + submodule["url"]
             print(submodule["url"])
         if ".." in submodule["url"]:
             submodule["url"] = resolve_url(submodule["url"])
@@ -56,11 +56,11 @@ def for_submodules(submodules, recursive, repo_dir):
         run('git submodule update --init {}'.format(submodule["path"]))
         fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir)
 
-def update_submodules(recursive, repo_dir):
+def update_submodules(recursive, repo_dir, url):
     assert(pathlib.Path('.git').exists())
     if pathlib.Path('.gitmodules').exists():
         submodules = parse_submodules('.gitmodules')
-        for_submodules(submodules, recursive, repo_dir=repo_dir)
+        for_submodules(submodules, recursive, repo_dir=repo_dir, parent_url=url)
 
 def resolve_url(url):
     while ".." in url:
@@ -114,7 +114,7 @@ def fun(url, worktree, recursive, repo_dir):
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
-            update_submodules(recursive, repo_dir=repo_dir)
+            update_submodules(recursive, repo_dir=repo_dir, url=url)
         finally:
             os.chdir(orig_wd)
 
