@@ -33,12 +33,13 @@ def parse_submodules(path):
                     url = line.split(' ')[2].rstrip()
                 else:
                     print("empty line", line)
-            submodules.append(
-                    {
-                        "path": path,
-                        "url": url
-                    }
-                    )
+            if path != None:
+                submodules.append(
+                        {
+                            "path": path,
+                            "url": url
+                        }
+                        )
     except:
         print('parse submodules fail')
     return submodules
