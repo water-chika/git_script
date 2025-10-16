@@ -39,7 +39,7 @@ std::vector<submodule> parse_submodules(std::filesystem::path submodules_file_pa
             }
         }
     }
-    if (state = 1) {
+    if (state == 1) {
         submodules.emplace_back(path, url);
     }
 
