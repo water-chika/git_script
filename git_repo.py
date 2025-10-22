@@ -123,7 +123,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
     parser.add_argument('--worktree', type=str, default=None)
-    parser.add_argument('--recursive', type=bool, default=False)
+    parser.add_argument('--recursive', type=bool, default=True)
     args = parser.parse_args()
 
     config = None
