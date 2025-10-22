@@ -5,6 +5,7 @@ import os
 import argparse
 import json
 from urllib.parse import urljoin
+import multiprocessing
 
 def run(*args):
     print(*args)
@@ -44,24 +45,34 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
-def for_submodules(submodules, recursive, repo_dir, parent_url):
-    for submodule in submodules:
-        print('recursive', submodule)
-        if submodule["url"].startswith('../'):
-            submodule["url"] = parent_url + "/" + submodule["url"]
-            print(submodule["url"])
-        if ".." in submodule["url"]:
-            submodule["url"] = resolve_url(submodule["url"])
-            print(submodule["url"])
-        fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir)
-        run('git submodule update --init {}'.format(submodule["path"]))
-        fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir)
+def update_submodule(submodule, recursive, repo_dir, parent_url):
+    print('recursive', submodule)
+    if submodule["url"].startswith('../'):
+        submodule["url"] = parent_url + "/" + submodule["url"]
+        print(submodule["url"])
+    if ".." in submodule["url"]:
+        submodule["url"] = resolve_url(submodule["url"])
+        print(submodule["url"])
+    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=multiprocessing.Pool())
+    run('git submodule update --init {}'.format(submodule["path"]))
+    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=multiprocessing.Pool())
 
-def update_submodules(recursive, repo_dir, url):
+def for_submodules(submodules, recursive, repo_dir, parent_url, process_pool):
+    args_vector = []
+    for submodule in submodules:
+        args = []
+        args.append(submodule)
+        args.append(recursive)
+        args.append(repo_dir)
+        args.append(parent_url)
+        args_vector.append(args)
+        process_pool.apply_async(update_submodule, (submodule, recursive, repo_dir, parent_url))
+
+def update_submodules(recursive, repo_dir, url, process_pool):
     assert(pathlib.Path('.git').exists())
     if pathlib.Path('.gitmodules').exists():
         submodules = parse_submodules('.gitmodules')
-        for_submodules(submodules, recursive, repo_dir=repo_dir, parent_url=url)
+        for_submodules(submodules, recursive, repo_dir=repo_dir, parent_url=url, process_pool=process_pool)
 
 def resolve_url(url):
     while ".." in url:
@@ -94,7 +105,7 @@ def get_repo(url, repo_dir):
             repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
-def fun(url, worktree, recursive, repo_dir):
+def fun(url, worktree, recursive, repo_dir, process_pool):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
     if not repo.exists():
@@ -115,7 +126,7 @@ def fun(url, worktree, recursive, repo_dir):
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
-            update_submodules(recursive, repo_dir=repo_dir, url=url)
+            update_submodules(recursive, repo_dir=repo_dir, url=url, process_pool=process_pool)
         finally:
             os.chdir(orig_wd)
 
@@ -124,6 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('url', type=str)
     parser.add_argument('--worktree', type=str, default=None)
     parser.add_argument('--recursive', type=bool, default=True)
+    parser.add_argument('--cores')
     args = parser.parse_args()
 
     config = None
@@ -146,4 +158,8 @@ if __name__ == '__main__':
     config["repo_dir"] = repo_dir
     print(config)
 
-    fun(**config)
+    with multiprocessing.Pool(args.cores) as p:
+        config["process_pool"] = p
+        fun(**config)
+        p.close()
+        p.join()
