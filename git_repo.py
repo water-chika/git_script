@@ -80,6 +80,12 @@ def resolve_url(url):
         prev = url.rfind("/", 0, loc-1)
         url = url[:prev] + url[loc+2:]
     return url
+def resolve_submodule_url(url, parent_url):
+    if url.startswith('../'):
+        url = parent_url + "/" + url
+    if ".." in url:
+        url = resolve_url(url)
+    return url
 
 def get_repo(url, repo_dir):
     name = pathlib.Path(url).name
@@ -129,6 +135,57 @@ def fun(url, worktree, recursive, repo_dir, process_pool):
             update_submodules(recursive, repo_dir=repo_dir, url=url, process_pool=process_pool)
         finally:
             os.chdir(orig_wd)
+
+def is_in_git_worktree(path):
+    path = path.absolute()
+    contain_git = (path / '.git').exists()
+    while not contain_git and path != path.parent:
+        path = path.parent
+        contain_git = (path / '.git').exists()
+    return contain_git
+def git_worktree_path(path):
+    path = path.absolute()
+    contain_git = (path / '.git').exists()
+    while not contain_git and path != path.parent:
+        path = path.parent
+        contain_git = (path / '.git').exists()
+    return path
+def git_dir(path):
+    path = path.absolute()
+    contain_git = (path / '.git').exists()
+    while not contain_git and path != path.parent:
+        path = path.parent
+        contain_git = (path / '.git').exists()
+    gitdir_path = path / '.git'
+    if gitdir_path.is_file():
+        with open(gitdir_path) as file:
+            line = file.readline()
+            gitdir_path = pathlib.Path(line.split(' ')[1].rstrip()).absolute()
+            with open(gitdir_path / 'commondir') as file:
+                line = file.readline().rstrip()
+                gitdir_path = (gitdir_path / line).resolve()
+    print(gitdir_path)
+    return gitdir_path.resolve()
+
+def get_remote_url(config_path):
+    url = None
+    try:
+        print(config_path)
+        with open(config_path, 'r') as file:
+            lines = file.readlines()
+            code = 0
+            for line in lines:
+                if code == 0 and line.startswith('[remote '):
+                    code = 1
+                elif code == 1 and line.startswith('\turl = '):
+                    url = line.split(' ')[2].rstrip()
+                    code = 2
+                    break
+                else:
+                    print("empty line", line)
+    except:
+        print('parse config remote url fail')
+    return url
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
