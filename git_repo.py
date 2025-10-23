@@ -45,7 +45,7 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
-def update_submodule(submodule, recursive, repo_dir, parent_url):
+def update_submodule(submodule, recursive, repo_dir, parent_url, process_pool):
     print('recursive', submodule)
     if submodule["url"].startswith('../'):
         submodule["url"] = parent_url + "/" + submodule["url"]
@@ -53,9 +53,10 @@ def update_submodule(submodule, recursive, repo_dir, parent_url):
     if ".." in submodule["url"]:
         submodule["url"] = resolve_url(submodule["url"])
         print(submodule["url"])
-    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=multiprocessing.Pool())
+    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=process_pool)
     run('git submodule update --init {}'.format(submodule["path"]))
-    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=multiprocessing.Pool())
+    #fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=process_pool)
+    run('git submodule update {}'.format(submodule["path"]))
 
 def for_submodules(submodules, recursive, repo_dir, parent_url, process_pool):
     args_vector = []
@@ -66,7 +67,8 @@ def for_submodules(submodules, recursive, repo_dir, parent_url, process_pool):
         args.append(repo_dir)
         args.append(parent_url)
         args_vector.append(args)
-        process_pool.apply_async(update_submodule, (submodule, recursive, repo_dir, parent_url))
+        #process_pool.apply_async(update_submodule, (submodule, recursive, repo_dir, parent_url))
+        update_submodule(submodule, recursive, repo_dir, parent_url, process_pool)
 
 def update_submodules(recursive, repo_dir, url, process_pool):
     assert(pathlib.Path('.git').exists())
