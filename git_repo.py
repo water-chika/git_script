@@ -121,7 +121,6 @@ def fun(url, worktree, recursive, repo_dir, process_pool):
         run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
     else:
         run('git -C {} fetch --all'.format(repo))
-        run('git -C {} worktree prune'.format(repo))
 
     if not (repo / worktree / '.git').exists():
         run(
