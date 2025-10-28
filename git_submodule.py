@@ -42,12 +42,15 @@ if __name__ == '__main__':
                 registerred_path = git_worktree_path / registerred_submodule["path"]
                 if registerred_path.is_relative_to(request_path):
                     config = {}
-                    config["url"] = git_repo.resolve_submodule_url(registerred_submodule["url"], parent_url)
-                    config["worktree"] = registerred_path
+                    submodule_dict = {}
+                    submodule_dict["url"] = registerred_submodule["url"]
+                    submodule_dict["path"] = registerred_path
+                    config["submodule"] = submodule_dict
                     config["recursive"] = args.recursive
                     config["process_pool"] = process_pool
                     config["repo_dir"] = repo_dir
+                    config["parent_url"] = parent_url
                     print(config)
-                    git_repo.fun(**config)
+                    git_repo.update_submodule(**config)
         process_pool.close()
         process_pool.join()
