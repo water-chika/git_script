@@ -122,13 +122,15 @@ def fun(url, worktree, recursive, repo_dir, process_pool):
     else:
         run('git -C {} fetch --all'.format(repo))
         run('git -C {} worktree prune'.format(repo))
-    run(
-        'git -C {} worktree add -f --detach {}'
-            .format(
-               repo,
-               worktree
-           )
-    )
+
+    if not (repo / worktree / '.git').exists():
+        run(
+            'git -C {} worktree add -f --detach {}'
+                .format(
+                repo,
+                worktree
+            )
+        )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
