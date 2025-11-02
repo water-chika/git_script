@@ -47,15 +47,10 @@ def parse_submodules(path):
 
 def update_submodule(submodule, recursive, repo_dir, parent_url, process_pool):
     print('recursive', submodule)
-    if submodule["url"].startswith('../'):
-        submodule["url"] = parent_url + "/" + submodule["url"]
-        print(submodule["url"])
-    if ".." in submodule["url"]:
-        submodule["url"] = resolve_url(submodule["url"])
-        print(submodule["url"])
+    submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
+    print('resolved submodule url', submodule['url'])
     fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=process_pool)
     run('git submodule update --init {}'.format(submodule["path"]))
-    #fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=process_pool)
     run('git submodule update {}'.format(submodule["path"]))
 
 def for_submodules(submodules, recursive, repo_dir, parent_url, process_pool):
