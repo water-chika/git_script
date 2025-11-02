@@ -9,7 +9,7 @@ import multiprocessing
 
 def run(*args):
     print(*args)
-    os.system(*args)
+    return os.system(*args)
 
 def parse_submodules(path):
     submodules = []
@@ -49,7 +49,9 @@ def update_submodule(submodule, recursive, repo_dir, parent_url, process_pool):
     print('recursive', submodule)
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print('resolved submodule url', submodule['url'])
-    fun(submodule["url"], submodule["path"], recursive, repo_dir=repo_dir, process_pool=process_pool)
+    status_output = subprocess.run(['git', 'submodule', 'status', path], capture_output=True)
+    commit = status_output.split()[1]
+    fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, process_pool=process_pool)
     run('git submodule update --init {}'.format(submodule["path"]))
     run('git submodule update {}'.format(submodule["path"]))
 
@@ -63,7 +65,9 @@ def for_submodules(submodules, recursive, repo_dir, parent_url, process_pool):
         args.append(parent_url)
         args_vector.append(args)
         #process_pool.apply_async(update_submodule, (submodule, recursive, repo_dir, parent_url))
-        update_submodule(submodule, recursive, repo_dir, parent_url, process_pool)
+        update_submodule(submodule,
+                         recursive=recursive, repo_dir=repo_dir,
+                         parent_url=parent_url, process_pool=process_pool)
 
 def update_submodules(recursive, repo_dir, url, process_pool):
     assert(pathlib.Path('.git').exists())
@@ -108,21 +112,22 @@ def get_repo(url, repo_dir):
             repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
-def fun(url, worktree, recursive, repo_dir, process_pool):
+def fun(url, worktree, commit, recursive, repo_dir, process_pool):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
     if not repo.exists():
         run('git clone --bare {} {} --progress'.format(url, repo))
         run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
-    else:
+    elif commit != None and 0!=run('git -C {} rev-parse {}'.format(repo, commit)):
         run('git -C {} fetch --all'.format(repo))
 
     if not (repo / worktree / '.git').exists():
         run(
-            'git -C {} worktree add -f --detach {}'
+            'git -C {} worktree add -f --detach {} {}'
                 .format(
                 repo,
-                worktree
+                worktree,
+                commit
             )
         )
 
@@ -188,6 +193,7 @@ def get_remote_url(config_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
+    parser.add_argument('commit', type=str)
     parser.add_argument('--worktree', type=str, default=None)
     parser.add_argument('--recursive', type=bool, default=True)
     parser.add_argument('--cores')
@@ -211,6 +217,7 @@ if __name__ == '__main__':
         config["worktree"] = pathlib.Path(args.worktree).absolute()
     config["recursive"] = args.recursive
     config["repo_dir"] = repo_dir
+    config['commit'] = args.commit
     print(config)
 
     with multiprocessing.Pool(args.cores) as p:
