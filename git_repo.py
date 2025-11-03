@@ -193,7 +193,7 @@ def get_remote_url(config_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
-    parser.add_argument('commit', type=str)
+    parser.add_argument('--commit', type=str, default='HEAD')
     parser.add_argument('--worktree', type=str, default=None)
     parser.add_argument('--recursive', type=bool, default=True)
     parser.add_argument('--cores')
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     config = None
     config_file = pathlib.Path(os.path.abspath(__file__)).resolve().parent / "config.json"
     if not config_file.exists():
-        print("config file not exist!")
+        print("config file not exist!") 
     else:
         with open(config_file, "r") as config_file:
             config = json.load(config_file)
