@@ -6,6 +6,7 @@ import argparse
 import json
 from urllib.parse import urljoin
 import multiprocessing
+import subprocess
 
 def run(*args):
     print(*args)
@@ -49,8 +50,10 @@ def update_submodule(submodule, recursive, repo_dir, parent_url, process_pool):
     print('recursive', submodule)
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print('resolved submodule url', submodule['url'])
-    status_output = subprocess.run(['git', 'submodule', 'status', path], capture_output=True)
-    commit = status_output.split()[1]
+    status_output = subprocess.run(['git', 'submodule', 'status', submodule['path']],
+                                   capture_output=True, encoding='utf-8')
+    print(status_output)
+    commit = status_output.stdout.split()[0][1:]
     fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, process_pool=process_pool)
     run('git submodule update --init {}'.format(submodule["path"]))
     run('git submodule update {}'.format(submodule["path"]))
