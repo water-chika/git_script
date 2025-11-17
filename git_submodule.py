@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import git_repo
 import pathlib
 import os
