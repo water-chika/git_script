@@ -4,7 +4,7 @@ import pathlib
 import os
 import argparse
 import json
-from urllib.parse import urljoin
+from urllib.parse import urlparse
 import multiprocessing
 import subprocess
 
@@ -91,8 +91,35 @@ def resolve_submodule_url(url, parent_url):
         url = resolve_url(url)
     return url
 
-def get_repo(url, repo_dir):
+def remove_git_suffix(s):
+    if s.endswith('.git'):
+        s = s[0:len(s)-4]
+    return s
+
+def repo_name_from_url(url):
     name = pathlib.Path(url).name
+    return remove_git_suffix(name)
+
+def same_repo_url_in(url, urls):
+    parsed_url = urlparse(url)
+    for u in urls:
+        parsed = urlparse(u)
+        print(remove_git_suffix(parsed_url.path), remove_git_suffix(parsed.path))
+        if remove_git_suffix(parsed_url.path) == remove_git_suffix(parsed.path):
+            return True
+    return False
+
+def add_url_to_repo(url, repo):
+    parsed_url = urlparse(url)
+    remote_name = parsed_url.scheme + '_' + parsed_url.path.replace('/', '_').replace('.', '_')
+    subprocess.run(
+            [
+                'git','-C',repo,'remote', 'add', remote_name, url
+                ]
+            )
+
+def get_repo(url, repo_dir):
+    name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
     while repo.exists():
@@ -109,6 +136,9 @@ def get_repo(url, repo_dir):
                     remotes[remote_name] = line.split(' ')[2].rstrip()
         print(remotes)
         if url in remotes.values():
+            return repo
+        elif same_repo_url_in(url, remotes.values()):
+            add_url_to_repo(url, repo)
             return repo
         else:
             repo_index = repo_index + 1
@@ -222,7 +252,7 @@ if __name__ == '__main__':
 
     config["url"] = args.url
     if args.worktree == None:
-        name = pathlib.Path(args.url).name
+        name = repo_name_from_url(args.url)
         config["worktree"] = pathlib.Path(name).absolute()
     else:
         config["worktree"] = pathlib.Path(args.worktree).absolute()
