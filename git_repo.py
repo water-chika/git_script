@@ -121,11 +121,9 @@ def fun(url, worktree, commit, recursive, repo_dir, process_pool):
     if not repo.exists():
         run('git clone --bare {} {} --progress'.format(url, repo))
         run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
-    elif commit != None and 0!=run('git -C {} rev-parse {}'.format(repo, commit)):
-        run('git -C {} fetch --all'.format(repo))
 
     if not (repo / worktree / '.git').exists():
-        run(
+        ret = run(
             'git -C {} worktree add -f --detach {} {}'
                 .format(
                 repo,
@@ -133,6 +131,16 @@ def fun(url, worktree, commit, recursive, repo_dir, process_pool):
                 commit
             )
         )
+        if commit != None and 0!=ret:
+            run('git -C {} fetch --all'.format(repo))
+            ret = run(
+                'git -C {} worktree add -f --detach {} {}'
+                    .format(
+                    repo,
+                    worktree,
+                    commit
+                )
+            )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
