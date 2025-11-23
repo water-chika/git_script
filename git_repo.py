@@ -4,9 +4,10 @@ import pathlib
 import os
 import argparse
 import json
-from urllib.parse import urlparse
 import multiprocessing
 import subprocess
+
+import is_same_repo
 
 def run(*args):
     print(*args)
@@ -101,11 +102,9 @@ def repo_name_from_url(url):
     return remove_git_suffix(name)
 
 def same_repo_url_in(url, urls):
-    parsed_url = urlparse(url)
     for u in urls:
-        parsed = urlparse(u)
-        print(remove_git_suffix(parsed_url.path), remove_git_suffix(parsed.path))
-        if remove_git_suffix(parsed_url.path) == remove_git_suffix(parsed.path):
+        print(url,u)
+        if is_same_repo(url, u):
             return True
     return False
 
