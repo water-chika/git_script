@@ -224,6 +224,16 @@ def get_remote_url(config_path):
         print('parse config remote url fail')
     return url
 
+def load_config():
+    config = None
+    config_file = pathlib.Path(os.path.abspath(__file__)).resolve().parent / "config.json"
+    if not config_file.exists():
+        print("config file not exist!")
+    else:
+        with open(config_file, "r") as config_file:
+            config = json.load(config_file)
+    return config
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
@@ -233,13 +243,7 @@ if __name__ == '__main__':
     parser.add_argument('--cores')
     args = parser.parse_args()
 
-    config = None
-    config_file = pathlib.Path(os.path.abspath(__file__)).resolve().parent / "config.json"
-    if not config_file.exists():
-        print("config file not exist!") 
-    else:
-        with open(config_file, "r") as config_file:
-            config = json.load(config_file)
+    config = load_config()
     assert(config != None)
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
 
