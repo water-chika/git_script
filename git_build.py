@@ -1,4 +1,5 @@
 import subprocess
+import pathlib
 
 def build():
     subprocess.run([
@@ -12,7 +13,7 @@ def build():
             ]
 
 def main():
-    out = subrocess.run([
+    out = subprocess.run([
         'git', 'rev-parse', 'HEAD'
         ], capture_output=True, encoding='utf-8')
     commit = out.stdout
@@ -21,8 +22,8 @@ def main():
     if not cache.exist():
         cached_files = build()
         for file in cached_files:
-            file.copy_to(cache_dir)
-    cache.copy_to('build/bin')
+            file.move(cache_dir)
+    cache.copy_into('build/bin')
 
     pass
 if __name__ == '__main__':
