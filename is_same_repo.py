@@ -10,12 +10,14 @@ def git_url_parse(url):
     if parsed_url.scheme == '':
         loc = url.find(':')
         parsed_url = urlparse('ssh://' + url[0:loc] + '/' + url[loc+1:])
-        print(parsed_url)
+    if parsed_url.scheme == 'ssh' and parsed_url.netloc.count('@') > 0:
+        loc = parsed_url.netloc.find('@')
+        parsed_url = urlparse(parsed_url.scheme + '://' + parsed_url.netloc[loc+1:] + parsed_url.path)
     return parsed_url
 
 def is_same_repo(url0, url1):
     parsed_url0 = git_url_parse(url0)
     parsed_url1 = git_url_parse(url1)
-    print(remove_git_suffix(parsed_url0.path), remove_git_suffix(parsed_url1.path))
-    if remove_git_suffix(parsed_url0.path) == remove_git_suffix(parsed_url1.path):
+    print(parsed_url0, parsed_url1)
+    if parsed_url0.netloc == parsed_url1.netloc and remove_git_suffix(parsed_url0.path) == remove_git_suffix(parsed_url1.path):
         return True
