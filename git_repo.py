@@ -138,6 +138,9 @@ def get_repo(url, repo_dir):
             repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
+def exists_commit(repo, commit):
+    return 0 == run('git -C {} rev-parse -q --verify {}'.format(repo, commit))
+
 def fun(url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
@@ -146,24 +149,15 @@ def fun(url, worktree, commit, recursive, repo_dir):
         run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
 
     if not (repo / worktree / '.git').exists():
-        ret = run(
-            'git -C {} worktree add -f --detach {} {}'
-                .format(
-                repo,
-                worktree,
-                commit
-            )
-        )
-        if commit != None and 0!=ret:
+        if commit != '' and not exists_commit(repo, commit):
             run('git -C {} fetch --all'.format(repo))
-            ret = run(
-                'git -C {} worktree add -f --detach {} {}'
-                    .format(
-                    repo,
-                    worktree,
-                    commit
-                )
-            )
+        detach_or_orphan_flag = '--detach'
+        if commit == '' and not exists_commit(repo, 'HEAD'):
+            detach_or_orphan_flag = '--orphan'
+        run(
+            'git -C {} worktree add -f {} {} {}'
+                .format(repo, detach_or_orphan_flag, worktree, commit)
+        )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
@@ -237,8 +231,8 @@ def load_config():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
-    parser.add_argument('--commit', type=str, default='HEAD')
-    parser.add_argument('--worktree', type=str, default=None)
+    parser.add_argument('--commit', type=str, default='')
+    parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', type=bool, default=True)
     parser.add_argument('--cores')
     args = parser.parse_args()
