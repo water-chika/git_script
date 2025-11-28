@@ -153,7 +153,7 @@ def fun(url, worktree, commit, recursive, repo_dir):
             run('git -C {} fetch --all'.format(repo))
         detach_or_orphan_flag = '--detach'
         if commit == '' and not exists_commit(repo, 'HEAD'):
-            detach_or_orphan_flag = '--orphan'
+            detach_or_orphan_flag = '--orphan -b main'
         run(
             'git -C {} worktree add -f {} {} {}'
                 .format(repo, detach_or_orphan_flag, worktree, commit)
