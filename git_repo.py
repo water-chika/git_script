@@ -241,6 +241,7 @@ if __name__ == '__main__':
     assert(config != None)
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
 
+    config = {}
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)
