@@ -15,3 +15,10 @@ add_executable(git_repo_submodule
 target_compile_features(git_repo_submodule PUBLIC cxx_std_20)
 
 target_compile_definitions(git_repo_submodule PUBLIC GIT_REPO_SUBMODULE_PY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/git_submodule.py")
+
+add_executable(git_build
+    git_build.cpp)
+
+target_compile_features(git_build PUBLIC cxx_std_20)
+
+target_compile_definitions(git_build PUBLIC GIT_BUILD_PY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/git_build.py")
