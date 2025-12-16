@@ -139,7 +139,7 @@ def get_repo(url, repo_dir):
     return repo
 
 def exists_commit(repo, commit):
-    return 0 == run('git -C {} rev-parse -q --verify {}'.format(repo, commit))
+    return 0 == run('git -C {} rev-list --quiet --max-count 1 {}'.format(repo, commit))
 
 def fun(url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
