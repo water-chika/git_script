@@ -10,13 +10,15 @@ def subprocess_run(cmds):
     print(cmds)
     return subprocess.run(cmds)
 
-def build(build_dir):
+def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
     subprocess_run([
-        'cmake', '-S', '.', '-B', build_dir
+        'cmake', '-S', '.', '-B', str(build_dir)
         ])
+
+def build(build_dir):
     subprocess_run([
-        'cmake', '--build', build_dir, '--parallel'
+        'cmake', '--build', str(build_dir), '--parallel'
         ])
 
 def git_build():
@@ -47,6 +49,8 @@ def main():
 
     if (args.command == 'build'):
         build(build_dir)
+    elif (args.command == 'configure'):
+        configure(build_dir)
     elif (args.command == 'path'):
         print(build_dir)
     else:
