@@ -12,16 +12,26 @@ def subprocess_run(cmds):
 
 def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
-    subprocess_run([
-        'cmake', '-S', '.', '-B', str(build_dir)
-        ])
+    if pathlib.Path('meson.build').exists():
+        subprocess_run([
+            'meson', 'setup', str(build_dir)
+            ])
+    elif pathlib.Path('CMakeLists.txt').exists():
+        subprocess_run([
+            'cmake', '-S', '.', '-B', str(build_dir)
+            ])
 
 def build(build_dir):
     if not build_dir.exists():
         configure(build_dir)
-    subprocess_run([
-        'cmake', '--build', str(build_dir), '--parallel'
-        ])
+    if pathlib.Path('meson.build').exists():
+        subprocess_run(
+                ['meson', 'build', str(build_dir)]
+                )
+    elif pathlib.Path('CMakeLists.txt').exists():
+        subprocess_run([
+            'cmake', '--build', str(build_dir), '--parallel'
+            ])
 
 def git_build():
     out = subprocess.run([
