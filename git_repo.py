@@ -160,6 +160,7 @@ def fun(url, worktree, commit, recursive, repo_dir):
         print(remote_branch)
         branch = remote_branch[7:]
         run('git -C {} branch {} {}'.format(repo, branch, remote_branch))
+        run('git -C {} reset --soft {}'.format(repo, branch))
 
     if not (repo / worktree / '.git').exists():
         if commit != '' and not exists_commit(repo, commit):
