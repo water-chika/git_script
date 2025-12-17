@@ -139,14 +139,19 @@ def get_repo(url, repo_dir):
     return repo
 
 def exists_commit(repo, commit):
-    return 0 == run('git -C {} rev-list --quiet --max-count 1 {}'.format(repo, commit))
+    res = subprocess.run(
+            ['git', '-C', repo, 'rev-list', '--quiet', '--max-count', '1', commit],
+            capture_output=True
+            )
+    return 0 == res.returncode
 
 def fun(url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
     if not repo.exists():
-        run('git clone --bare {} {} --progress'.format(url, repo))
-        run('git -C {} config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*'.format(repo))
+        run('git init --bare {} -b main'.format(repo))
+        run('git -C {} remote add origin {}'.format(repo, url))
+        run('git -C {} fetch'.format(repo))
 
     if not (repo / worktree / '.git').exists():
         if commit != '' and not exists_commit(repo, commit):
