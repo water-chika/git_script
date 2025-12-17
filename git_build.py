@@ -17,6 +17,8 @@ def configure(build_dir):
         ])
 
 def build(build_dir):
+    if not build_dir.exists():
+        configure(build_dir)
     subprocess_run([
         'cmake', '--build', str(build_dir), '--parallel'
         ])
