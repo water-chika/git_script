@@ -152,6 +152,14 @@ def fun(url, worktree, commit, recursive, repo_dir):
         run('git init --bare {} -b main'.format(repo))
         run('git -C {} remote add origin {}'.format(repo, url))
         run('git -C {} fetch'.format(repo))
+        res = subprocess.run(
+                ['git', '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
+                capture_output=True,encoding='utf-8'
+                )
+        remote_branch = res.stdout.split()[2]
+        print(remote_branch)
+        branch = remote_branch[7:]
+        run('git -C {} branch {} {}'.format(repo, branch, remote_branch))
 
     if not (repo / worktree / '.git').exists():
         if commit != '' and not exists_commit(repo, commit):
