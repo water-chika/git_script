@@ -162,9 +162,10 @@ def fun(url, worktree, commit, recursive, repo_dir):
         run('git -C {} branch {} {}'.format(repo, branch, remote_branch))
         run('git -C {} reset --soft {}'.format(repo, branch))
 
+    if commit != '' and not exists_commit(repo, commit):
+        run('git -C {} fetch --all'.format(repo))
+
     if not (repo / worktree / '.git').exists():
-        if commit != '' and not exists_commit(repo, commit):
-            run('git -C {} fetch --all'.format(repo))
         detach_or_orphan_flag = '--detach'
         if commit == '' and not exists_commit(repo, 'HEAD'):
             detach_or_orphan_flag = '--orphan -b main'
