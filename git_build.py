@@ -12,7 +12,11 @@ def subprocess_run(*args, **kwargs):
 
 def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
-    if pathlib.Path('configure').exists():
+    if pathlib.Path('Kbuild').exists():
+        subprocess_run([
+            'make', 'O=' + str(build_dir), 'defconfig'
+            ])
+    elif pathlib.Path('configure').exists():
         subprocess_run([
             str(pathlib.Path('configure').absolute())
             ], cwd=build_dir)
@@ -25,14 +29,27 @@ def configure(build_dir):
             'cmake', '-S', '.', '-B', str(build_dir)
             ])
 
+def build_used_process_count():
+    return os.cpu_count()
+
 def build(build_dir):
     if not build_dir.exists():
         configure(build_dir)
-    if pathlib.Path('configure').exists():
+    if pathlib.Path('Kbuild').exists():
+        if not (build_dir/'.config').exists():
+            configure(build_dir)
+        subprocess_run([
+            'make', 'O=' + str(build_dir), '-j', str(build_used_process_count())
+            ])
+    elif pathlib.Path('Makefile').exists():
+        subprocess_run([
+            'make', 'O=' + str(build_dir), '-j', str(build_used_process_count())
+            ])
+    elif pathlib.Path('configure').exists():
         if not (build_dir/'Makefile').exists():
             configure(build_dir)
         subprocess_run([
-            'make', '-j', str(os.cpu_count())
+            'make', '-j', str(build_used_process_count())
             ], cwd=build_dir)
     elif pathlib.Path('meson.build').exists():
         subprocess_run(
