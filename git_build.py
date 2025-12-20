@@ -6,13 +6,17 @@ from git_repo import load_config
 import argparse
 import os
 
-def subprocess_run(cmds):
-    print(cmds)
-    return subprocess.run(cmds)
+def subprocess_run(*args, **kwargs):
+    print(*args, kwargs)
+    return subprocess.run(*args, **kwargs)
 
 def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
-    if pathlib.Path('meson.build').exists():
+    if pathlib.Path('configure').exists():
+        subprocess_run([
+            str(pathlib.Path('configure').absolute())
+            ], cwd=build_dir)
+    elif pathlib.Path('meson.build').exists():
         subprocess_run([
             'meson', 'setup', str(build_dir)
             ])
@@ -24,7 +28,13 @@ def configure(build_dir):
 def build(build_dir):
     if not build_dir.exists():
         configure(build_dir)
-    if pathlib.Path('meson.build').exists():
+    if pathlib.Path('configure').exists():
+        if not (build_dir/'Makefile').exists():
+            configure(build_dir)
+        subprocess_run([
+            'make', '-j', str(os.cpu_count())
+            ], cwd=build_dir)
+    elif pathlib.Path('meson.build').exists():
         subprocess_run(
                 ['meson', 'build', str(build_dir)]
                 )
