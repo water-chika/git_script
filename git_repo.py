@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 from urllib.parse import urlparse
+import shutil
 
 from is_same_repo import is_same_repo,remove_git_suffix
 
@@ -151,7 +152,12 @@ def fun(url, worktree, commit, recursive, repo_dir):
     if not repo.exists():
         run('git init --bare {} -b main'.format(repo))
         run('git -C {} remote add origin {}'.format(repo, url))
-        run('git -C {} fetch'.format(repo))
+        fetch_res = subprocess.run(
+                ['git', '-C', repo, 'fetch']
+                )
+        if fetch_res.returncode != 0:
+            shutil.rmtree(repo)
+            return
         res = subprocess.run(
                 ['git', '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
                 capture_output=True,encoding='utf-8'
