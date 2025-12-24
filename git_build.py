@@ -35,7 +35,11 @@ def build_used_process_count():
 def build(build_dir):
     if not build_dir.exists():
         configure(build_dir)
-    if pathlib.Path('Kbuild').exists():
+    if pathlib.Path('PKGBUILD').exists():
+        subprocess_run([
+            'makepkg'
+            ], env={ 'BUILDDIR': str(build_dir)})
+    elif pathlib.Path('Kbuild').exists():
         if not (build_dir/'.config').exists():
             configure(build_dir)
         subprocess_run([
@@ -53,7 +57,7 @@ def build(build_dir):
             ], cwd=build_dir)
     elif pathlib.Path('meson.build').exists():
         subprocess_run(
-                ['meson', 'build', str(build_dir)]
+                ['ninja', '-C', str(build_dir)]
                 )
     elif pathlib.Path('CMakeLists.txt').exists():
         subprocess_run([
