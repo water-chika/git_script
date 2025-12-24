@@ -61,7 +61,7 @@ def build(build_dir):
                 )
     elif pathlib.Path('CMakeLists.txt').exists():
         subprocess_run([
-            'cmake', '--build', str(build_dir), '--parallel'
+            'cmake', '--build', str(build_dir), '--parallel', str(build_used_process_count())
             ])
 
 def git_build():
