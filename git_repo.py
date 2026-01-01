@@ -165,7 +165,7 @@ def fun(url, worktree, commit, recursive, repo_dir):
         remote_branch = res.stdout.split()[2]
         print(remote_branch)
         branch = remote_branch[7:]
-        run('git -C {} --track branch {} {}'.format(repo, branch, remote_branch))
+        run('git -C {} branch --track {} {}'.format(repo, branch, remote_branch))
         run('git -C {} reset --soft {}'.format(repo, branch))
 
     if commit != '' and not exists_commit(repo, commit):
