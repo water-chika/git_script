@@ -150,7 +150,7 @@ def fun(url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(url, repo_dir)
     if not repo.exists():
-        run('git init --bare {} -b main'.format(repo))
+        run('git init --bare {}'.format(repo))
         run('git -C {} remote add origin {}'.format(repo, url))
         fetch_res = subprocess.run(
                 ['git', '-C', repo, 'fetch']
@@ -165,13 +165,13 @@ def fun(url, worktree, commit, recursive, repo_dir):
         remote_branch = res.stdout.split()[2]
         print(remote_branch)
         branch = remote_branch[7:]
-        run('git -C {} branch {} {}'.format(repo, branch, remote_branch))
+        run('git -C {} --track branch {} {}'.format(repo, branch, remote_branch))
         run('git -C {} reset --soft {}'.format(repo, branch))
 
     if commit != '' and not exists_commit(repo, commit):
         run('git -C {} fetch --all'.format(repo))
 
-    if not (repo / worktree / '.git').exists():
+    if not (worktree / '.git').exists():
         detach_or_orphan_flag = '--detach'
         if commit == '' and not exists_commit(repo, 'HEAD'):
             detach_or_orphan_flag = '--orphan -b main'
