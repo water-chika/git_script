@@ -65,21 +65,26 @@ def build(build_dir):
                 ['ninja', '-C', str(build_dir)]
                 )
 
+def is_cacheable(build_dir):
+    return False
 
-def git_build():
+def find_need_cached_files(build_dir):
+    pass
+
+def git_build(build_dir):
     out = subprocess.run([
         'git', 'rev-parse', 'HEAD'
         ], capture_output=True, encoding='utf-8')
     commit = out.stdout
     config = load_config()
-    cache_dir = pathlib.Path(config['cache_dir']).absolute()
-    need_cached_files = config['need_cached_files']
+    cache_dir = pathlib.Path(config['cache_dir']).absolute() / pathlib.Path.cwd().name
+    need_cached_files = config['need_cached_files'][pathlib.Path.cwd().name]
     cache = cache_dir / commit
     if not cache.exist():
-        build()
+        build(build_dir)
         for file in need_cached_files:
             file.move(cache_dir)
-    cache.copy_into('build/bin')
+    cache.copy_into(build_dir)
 
 def main():
     parser = argparse.ArgumentParser()
