@@ -12,7 +12,11 @@ def subprocess_run(*args, **kwargs):
 
 def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
-    if pathlib.Path('Kbuild').exists():
+    if pathlib.Path('CMakeLists.txt').exists():
+        subprocess_run([
+            'cmake', '-S', '.', '-B', str(build_dir)
+            ])
+    elif pathlib.Path('Kbuild').exists():
         subprocess_run([
             'make', 'O=' + str(build_dir), 'defconfig'
             ])
@@ -24,10 +28,7 @@ def configure(build_dir):
         subprocess_run([
             'meson', 'setup', str(build_dir)
             ])
-    elif pathlib.Path('CMakeLists.txt').exists():
-        subprocess_run([
-            'cmake', '-S', '.', '-B', str(build_dir)
-            ])
+
 
 def build_used_process_count():
     return os.cpu_count()
@@ -35,7 +36,11 @@ def build_used_process_count():
 def build(build_dir):
     if not build_dir.exists():
         configure(build_dir)
-    if pathlib.Path('PKGBUILD').exists():
+    if (build_dir / 'CMakeCache.txt').exists():
+        subprocess_run([
+            'cmake', '--build', str(build_dir), '--parallel', str(build_used_process_count())
+            ])
+    elif pathlib.Path('PKGBUILD').exists():
         subprocess_run([
             'makepkg'
             ], env={ 'BUILDDIR': str(build_dir)})
@@ -59,10 +64,7 @@ def build(build_dir):
         subprocess_run(
                 ['ninja', '-C', str(build_dir)]
                 )
-    elif pathlib.Path('CMakeLists.txt').exists():
-        subprocess_run([
-            'cmake', '--build', str(build_dir), '--parallel', str(build_used_process_count())
-            ])
+
 
 def git_build():
     out = subprocess.run([
