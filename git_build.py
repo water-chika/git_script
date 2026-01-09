@@ -66,22 +66,33 @@ def build(build_dir):
                 )
 
 def is_cacheable(build_dir):
+    config = load_config()
+    if 'need_cached_files' in config and pathlib.Path.cwd().name in config['need_cached_files']:
+        return True
     return False
 
 def find_need_cached_files(build_dir):
-    pass
+    config = load_config()
+    files = []
+    for file in config['need_cached_files'][pathlib.Path.cwd().name]:
+        files.append(build_dir / file)
+    return files
 
 def git_build(build_dir):
+    config = load_config()
+    if not is_cacheable(build_dir):
+        build(build_dir)
+        return
+
     out = subprocess.run([
         'git', 'rev-parse', 'HEAD'
         ], capture_output=True, encoding='utf-8')
     commit = out.stdout
-    config = load_config()
     cache_dir = pathlib.Path(config['cache_dir']).absolute() / pathlib.Path.cwd().name
-    need_cached_files = config['need_cached_files'][pathlib.Path.cwd().name]
+    need_cached_files = find_need_cached_files(build_dir)
     cache = cache_dir / commit
     if not cache.exist():
-        build(build_dir)
+        git_build(build_dir)
         for file in need_cached_files:
             file.move(cache_dir)
     cache.copy_into(build_dir)
