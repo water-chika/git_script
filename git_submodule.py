@@ -8,10 +8,19 @@ import json
 from urllib.parse import urljoin
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('submodules', nargs='*', type=str)
-    parser.add_argument('--recursive', type=bool, default=True)
-    parser.add_argument('--cores')
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description='''Initialize and update git submodules using worktree model.
+
+This script initializes submodules in the current git worktree, using the same
+bare repo + worktree approach as git_repo. Submodules are stored in the central
+repo_dir and linked via worktrees.
+
+If no submodule paths are specified, all registered submodules will be updated.''')
+    parser.add_argument('submodules', nargs='*',
+                        help='Submodule paths to init (default: all)')
+    parser.add_argument('--no-recursive', action='store_true',
+                        help='Do not recurse into nested submodules')
     args = parser.parse_args()
 
     config = None
@@ -43,10 +52,11 @@ if __name__ == '__main__':
             if registerred_path.is_relative_to(request_path):
                 config = {}
                 submodule_dict = {}
+                submodule_dict["name"] = registerred_submodule["name"]
                 submodule_dict["url"] = registerred_submodule["url"]
                 submodule_dict["path"] = registerred_path
                 config["submodule"] = submodule_dict
-                config["recursive"] = args.recursive
+                config["recursive"] = not args.no_recursive
                 config["repo_dir"] = repo_dir
                 config["parent_url"] = parent_url
                 print(config)
