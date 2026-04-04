@@ -55,10 +55,13 @@ def update_submodule(submodule, recursive, repo_dir, parent_url):
     status_output = subprocess.run(['git', 'submodule', 'status', submodule['path']],
                                    capture_output=True, encoding='utf-8')
     print(status_output)
-    commit = status_output.stdout.split()[0][1:]
-    fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
-    run('git submodule update --init {}'.format(submodule["path"]))
-    run('git submodule update {}'.format(submodule["path"]))
+    if status_output.stdout != '':
+        commit = status_output.stdout.split()[0][1:]
+        fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
+        run('git submodule update --init {}'.format(submodule["path"]))
+        run('git submodule update {}'.format(submodule["path"]))
+    else:
+        print("submodule commit get fail")
 
 def for_submodules(submodules, recursive, repo_dir, parent_url):
     args_vector = []
