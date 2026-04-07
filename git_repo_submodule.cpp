@@ -1,5 +1,36 @@
 #include <string>
 
+#if _WIN32
+constexpr auto sep = ';';
+#else
+constexpr auto sep = ':';
+#endif
+
+auto get_paths() {
+    auto env_path = std::getenv("PATH");
+    auto paths = std::unordered_set<std::filesystem::path>{};
+
+    uint32_t s = 0;
+    while ('\0' != env_path[s]) {
+        auto next = strchr(env_path+s, sep);
+        paths.emplace(std::string{env_path+s, next});
+        s = next - env_path;
+    }
+    return paths;
+}
+
+auto get_all_commands(std::string command) {
+    auto command_full_paths = std::unordered_set<std::filesystem::path>{};
+
+    auto paths = get_paths();
+    for (auto& path : paths) {
+        command_full_path = path / command;
+        if (command_full_path.exist()) {
+            command_full_paths.append(command_full_path);
+        }
+    }
+    return command_full_paths;
+}
 
 int main(int argc, const char* argv[]) {
     std::string cmd = "python " GIT_REPO_SUBMODULE_PY_PATH;
