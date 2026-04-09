@@ -1,4 +1,7 @@
 #include <string>
+#include <filesystem>
+#include <unordered_set>
+#include <cstring>
 
 #if _WIN32
 constexpr auto sep = ';';
@@ -24,9 +27,9 @@ auto get_all_commands(std::string command) {
 
     auto paths = get_paths();
     for (auto& path : paths) {
-        command_full_path = path / command;
-        if (command_full_path.exist()) {
-            command_full_paths.append(command_full_path);
+        auto command_full_path = path / command;
+        if (exists(command_full_path)) {
+            command_full_paths.emplace(command_full_path);
         }
     }
     return command_full_paths;
