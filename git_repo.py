@@ -48,22 +48,22 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
-def update_submodule(submodule, recursive, repo_dir, parent_url):
+def update_submodule(git_path, submodule, recursive, repo_dir, parent_url):
     print('recursive', submodule)
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print('resolved submodule url', submodule['url'])
-    status_output = subprocess.run(['git', 'submodule', 'status', submodule['path']],
+    status_output = subprocess.run([git_path, 'submodule', 'status', submodule['path']],
                                    capture_output=True, encoding='utf-8')
     print(status_output)
     if status_output.stdout != '':
         commit = status_output.stdout.split()[0][1:]
         fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
-        run('git submodule update --init {}'.format(submodule["path"]))
-        run('git submodule update {}'.format(submodule["path"]))
+        run('{} submodule update --init {}'.format(git_path, submodule["path"]))
+        run('{} submodule update {}'.format(git_path, submodule["path"]))
     else:
         print("submodule commit get fail")
 
-def for_submodules(submodules, recursive, repo_dir, parent_url):
+def for_submodules(git_path, submodules, recursive, repo_dir, parent_url):
     args_vector = []
     for submodule in submodules:
         args = []
@@ -72,15 +72,15 @@ def for_submodules(submodules, recursive, repo_dir, parent_url):
         args.append(repo_dir)
         args.append(parent_url)
         args_vector.append(args)
-        update_submodule(submodule,
+        update_submodule(git_path, submodule,
                          recursive=recursive, repo_dir=repo_dir,
                          parent_url=parent_url)
 
-def update_submodules(recursive, repo_dir, url):
+def update_submodules(git_path, recursive, repo_dir, url):
     assert(pathlib.Path('.git').exists())
     if pathlib.Path('.gitmodules').exists():
         submodules = parse_submodules('.gitmodules')
-        for_submodules(submodules, recursive, repo_dir=repo_dir, parent_url=url)
+        for_submodules(git_path, submodules, recursive, repo_dir=repo_dir, parent_url=url)
 
 def resolve_url(url):
     while ".." in url:
@@ -106,16 +106,16 @@ def same_repo_url_in(url, urls):
             return True
     return False
 
-def add_url_to_repo(url, repo):
+def add_url_to_repo(git_path, url, repo):
     parsed_url = urlparse(url)
     remote_name = parsed_url.scheme + '_' + parsed_url.path.replace('/', '_').replace('.', '_')
     subprocess.run(
             [
-                'git','-C',repo,'remote', 'add', remote_name, url
+                git_path,'-C',repo,'remote', 'add', remote_name, url
                 ]
             )
 
-def get_repo(url, repo_dir):
+def get_repo(git_path, url, repo_dir):
     name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
@@ -135,59 +135,59 @@ def get_repo(url, repo_dir):
         if url in remotes.values():
             return repo
         elif same_repo_url_in(url, remotes.values()):
-            add_url_to_repo(url, repo)
+            add_url_to_repo(git_path, url, repo)
             return repo
         else:
             repo_index = repo_index + 1
             repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
-def exists_commit(repo, commit):
+def exists_commit(git_path, repo, commit):
     res = subprocess.run(
-            ['git', '-C', repo, 'rev-list', '--quiet', '--max-count', '1', commit],
+            [git_path, '-C', repo, 'rev-list', '--quiet', '--max-count', '1', commit],
             capture_output=True
             )
     return 0 == res.returncode
 
-def fun(url, worktree, commit, recursive, repo_dir):
+def fun(git_path, url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
-    repo = get_repo(url, repo_dir)
+    repo = get_repo(git_path, url, repo_dir)
     if not repo.exists():
-        run('git init --bare {}'.format(repo))
-        run('git -C {} remote add origin {}'.format(repo, url))
+        run('{} init --bare {}'.format(git_path, repo))
+        run('{} -C {} remote add origin {}'.format(git_path, repo, url))
         fetch_res = subprocess.run(
-                ['git', '-C', repo, 'fetch']
+                [git_path, '-C', repo, 'fetch']
                 )
         if fetch_res.returncode != 0:
             shutil.rmtree(repo)
             return
         res = subprocess.run(
-                ['git', '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
+                [git_path, '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
                 capture_output=True,encoding='utf-8'
                 )
         remote_branch = res.stdout.split()[2]
         print(remote_branch)
         branch = remote_branch[7:]
-        run('git -C {} branch --track {} {}'.format(repo, branch, remote_branch))
-        run('git -C {} reset --soft {}'.format(repo, branch))
+        run('{} -C {} branch --track {} {}'.format(git_path, repo, branch, remote_branch))
+        run('{} -C {} reset --soft {}'.format(git_path, repo, branch))
 
     if commit != '' and not exists_commit(repo, commit):
-        run('git -C {} fetch --all'.format(repo))
+        run('{} -C {} fetch --all'.format(git_path, repo))
 
     if not (worktree / '.git').exists():
         detach_or_orphan_flag = '--detach'
         if commit == '' and not exists_commit(repo, 'HEAD'):
             detach_or_orphan_flag = '--orphan -b main'
         run(
-            'git -C {} worktree add -f {} {} {}'
-                .format(repo, detach_or_orphan_flag, worktree, commit)
+            '{} -C {} worktree add -f {} {} {}'
+                .format(git_path, repo, detach_or_orphan_flag, worktree, commit)
         )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
-            update_submodules(recursive, repo_dir=repo_dir, url=url)
+            update_submodules(git_path, recursive, repo_dir=repo_dir, url=url)
         finally:
             os.chdir(orig_wd)
 
@@ -255,6 +255,7 @@ def load_config():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
+    parser.add_argument('--git_path', type=str, default='git')
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', type=bool, default=True)
@@ -266,6 +267,7 @@ if __name__ == '__main__':
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
 
     config = {}
+    config["git_path"] = pathlib.Path(args.git_path).absolute()
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)

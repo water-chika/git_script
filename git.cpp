@@ -4,6 +4,7 @@
 #include <fstream>
 #include <regex>
 #include <optional>
+#include <cstring>
 
 std::optional<std::filesystem::path> get_next_command(std::string command) {
     auto path = std::getenv("PATH");
