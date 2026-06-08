@@ -45,7 +45,7 @@ int main(int argc, const char* argv[]) {
         return -1;
     }
 
-    if (argc != 2 || argv[1][0] == '-') {
+    if (argc != 3 || strcmp(argv[1], "clone") != 0 || argv[2][0] == '-') {
         cmd = absolute(git_path.value());
         for (int i = 1; i < argc; i++) {
             cmd += " ";
