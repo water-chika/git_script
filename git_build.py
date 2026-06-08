@@ -8,7 +8,15 @@ import os
 
 def subprocess_run(*args, **kwargs):
     print(*args, kwargs)
-    return subprocess.run(*args, **kwargs)
+    proc = subprocess.Popen(*args, **kwargs)
+    try:
+        outs, errs = proc.communicate()
+    except KeyboardInterrupt:
+        proc.kill()
+        outs, errs = proc.communicate()
+    finally:
+        proc.kill()
+    return outs, errs
 
 def configure(build_dir):
     build_dir.mkdir(exist_ok=True)
