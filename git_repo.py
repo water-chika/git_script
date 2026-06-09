@@ -171,12 +171,12 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir):
         run('{} -C {} branch --track {} {}'.format(git_path, repo, branch, remote_branch))
         run('{} -C {} reset --soft {}'.format(git_path, repo, branch))
 
-    if commit != '' and not exists_commit(repo, commit):
+    if commit != '' and not exists_commit(git_path, repo, commit):
         run('{} -C {} fetch --all'.format(git_path, repo))
 
     if not (worktree / '.git').exists():
         detach_or_orphan_flag = '--detach'
-        if commit == '' and not exists_commit(repo, 'HEAD'):
+        if commit == '' and not exists_commit(git_path, repo, 'HEAD'):
             detach_or_orphan_flag = '--orphan -b main'
         run(
             '{} -C {} worktree add -f {} {} {}'
@@ -255,7 +255,7 @@ def load_config():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
-    parser.add_argument('--git_path', type=str, default='git')
+    parser.add_argument('--git_path', type=str)
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', type=bool, default=True)
@@ -265,9 +265,12 @@ if __name__ == '__main__':
     config = load_config()
     assert(config != None)
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
+    git_path = pathlib.Path(config["git_path"]).absolute()
 
     config = {}
-    config["git_path"] = pathlib.Path(args.git_path).absolute()
+    config["git_path"] = git_path
+    if args.git_path != None:
+        config["git_path"] = pathlib.Path(args.git_path).absolute()
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)

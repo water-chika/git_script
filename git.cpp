@@ -14,7 +14,8 @@ std::optional<std::filesystem::path> get_next_command(std::string command) {
     auto prev_path = path;
     while (*path != '\0') {
         if (*path == sep) {
-            auto command_path = std::filesystem::path{prev_path, path-1} / "command";
+            auto command_path = std::filesystem::path{prev_path, path} / command;
+            prev_path = path+1;
             if (first_command) {
                 first_command = false;
             }
@@ -25,7 +26,8 @@ std::optional<std::filesystem::path> get_next_command(std::string command) {
         ++path;
     }
     if (prev_path != path) {
-            auto command_path = std::filesystem::path{prev_path, path-1} / "command";
+            auto command_path = std::filesystem::path{prev_path, path} / command;
+            prev_path = path+1;
             if (first_command) {
                 first_command = false;
             }
@@ -58,7 +60,7 @@ int main(int argc, const char* argv[]) {
         cmd += " --git_path ";
         cmd += absolute(git_path.value());
         cmd += " ";
-        cmd += argv[1];
+        cmd += argv[2];
     }
     system(cmd.c_str());
     return 0;
