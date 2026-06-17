@@ -261,6 +261,7 @@ if __name__ == '__main__':
     parser.add_argument('--recursive', type=bool, default=True)
     parser.add_argument('--cores')
     args = parser.parse_args()
+    print(args)
 
     config = load_config()
     assert(config != None)
