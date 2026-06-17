@@ -55,7 +55,7 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url):
         commit = status_output.stdout.split()[0][1:]
         fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
         subprocess.run([git_path, "submodule", "update", "--init", submodule["path"]])
-        subprocess.run([git_path, "submodule", "update", subomudle["path"]])
+        subprocess.run([git_path, "submodule", "update", submodule["path"]])
     else:
         print("submodule commit get fail")
 

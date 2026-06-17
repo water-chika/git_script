@@ -23,6 +23,7 @@ if __name__ == '__main__':
             config = json.load(config_file)
     assert(config != None)
     repo_dir = pathlib.Path(config["repo_dir"]).absolute()
+    git_path = pathlib.Path(config["git_path"]).absolute()
 
     working_dir = pathlib.Path('.').absolute()
 
@@ -45,6 +46,7 @@ if __name__ == '__main__':
                 submodule_dict = {}
                 submodule_dict["url"] = registerred_submodule["url"]
                 submodule_dict["path"] = registerred_path
+                config["git_path"] = git_path
                 config["submodule"] = submodule_dict
                 config["recursive"] = args.recursive
                 config["repo_dir"] = repo_dir
