@@ -151,12 +151,16 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir):
     if commit == None or commit == '':
         commit = 'HEAD'
     if not repo.exists():
-        subprocess.run([git_path, "init", "--bare", repo])
-        subprocess.run([git_path, "-C", repo, "remote", "add", "origin", url])
-        fetch_res = subprocess.run(
-                [git_path, '-C', repo, 'fetch']
-                )
-        if fetch_res.returncode != 0:
+        try:
+            subprocess.run([git_path, "init", "--bare", repo])
+            subprocess.run([git_path, "-C", repo, "remote", "add", "origin", url])
+            fetch_res = subprocess.run(
+                    [git_path, '-C', repo, 'fetch']
+                    )
+            if fetch_res.returncode != 0:
+                raise RuntimeError("git command failed")
+        except:
+            print("There is exception, clean repo")
             shutil.rmtree(repo)
             return
         res = subprocess.run(
