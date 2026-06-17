@@ -12,7 +12,6 @@
 #else
 #include <unistd.h>
 #define GIT_PATH "/usr/bin/git"
-#define PYTHON_PATH "/usr/bin/python"
 #endif
 
 int main(int argc, char* const argv[]) {

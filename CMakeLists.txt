@@ -13,10 +13,14 @@ add_executable(git
     git.cpp
 )
 target_compile_features(git PUBLIC cxx_std_20)
-target_compile_definitions(git PUBLIC GIT_REPO_PY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/git_repo.py")
+
+find_program(PYTHON_PATH python)
+target_compile_definitions(git PUBLIC
+    GIT_REPO_PY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/git_repo.py"
+    PYTHON_PATH="${PYTHON_PATH}"
+)
 if (WIN32)
-    find_program(PYTHON_PATH python)
-    target_compile_definitions(git PUBLIC PATH_SEPERATOR=';' PYTHON_PATH="${PYTHON_PATH}")
+    target_compile_definitions(git PUBLIC PATH_SEPERATOR=';')
 else()
     target_compile_definitions(git PUBLIC PATH_SEPERATOR=':')
 endif()
