@@ -17,11 +17,14 @@
 #endif
 
 int main(int argc, char* const argv[]) {
-    if (argc != 3 || strcmp(argv[1], "clone") != 0 || argv[2][0] == '-') {
-        return execv(GIT_PATH, argv);
+    if (argc == 3 && strcmp(argv[1], "clone") == 0 && argv[2][0] != '-') {
+        return execl(PYTHON_PATH, PYTHON_PATH, "/home/water/worktrees/git_script_build/git_script/git_repo.py", argv[2], NULL);
+    }
+    else if (argc == 4 && strcmp(argv[1], "clone") == 0 && argv[2][0] != '-' && argv[3][0] != '-') {
+        return execl(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2], "--worktree", argv[3], NULL);
     }
     else {
-        return execl(PYTHON_PATH, GIT_REPO_PY_PATH, argv[2], NULL);
+        return execv(GIT_PATH, argv);
     }
     return 0;
 }
