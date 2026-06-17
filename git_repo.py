@@ -10,10 +10,6 @@ import shutil
 
 from is_same_repo import is_same_repo,remove_git_suffix
 
-def run(*args):
-    print(*args)
-    return os.system(*args)
-
 def parse_submodules(path):
     submodules = []
     try:
@@ -58,8 +54,8 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url):
     if status_output.stdout != '':
         commit = status_output.stdout.split()[0][1:]
         fun(submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
-        run('{} submodule update --init {}'.format(git_path, submodule["path"]))
-        run('{} submodule update {}'.format(git_path, submodule["path"]))
+        subprocess.run([git_path, "submodule", "update", "--init", submodule["path"]])
+        subprocess.run([git_path, "submodule", "update", subomudle["path"]])
     else:
         print("submodule commit get fail")
 
@@ -152,9 +148,11 @@ def exists_commit(git_path, repo, commit):
 def fun(git_path, url, worktree, commit, recursive, repo_dir):
     worktree = pathlib.Path(worktree).absolute()
     repo = get_repo(git_path, url, repo_dir)
+    if commit == None or commit == '':
+        commit = 'HEAD'
     if not repo.exists():
-        run('{} init --bare {}'.format(git_path, repo))
-        run('{} -C {} remote add origin {}'.format(git_path, repo, url))
+        subprocess.run([git_path, "init", "--bare", repo])
+        subprocess.run([git_path, "-C", repo, "remote", "add", "origin", url])
         fetch_res = subprocess.run(
                 [git_path, '-C', repo, 'fetch']
                 )
@@ -168,20 +166,29 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir):
         remote_branch = res.stdout.split()[2]
         print(remote_branch)
         branch = remote_branch[7:]
-        run('{} -C {} branch --track {} {}'.format(git_path, repo, branch, remote_branch))
-        run('{} -C {} reset --soft {}'.format(git_path, repo, branch))
+        subprocess.run(
+                [git_path, "-C", repo, "branch", "--track", branch, remote_branch],
+                capture_output=True,encoding='utf-8'
+                )
+        subprocess.run(
+                [git_path, "-C", repo, "reset", "--soft", branch],
+                capture_output=True,encoding='utf-8'
+                )
 
-    if commit != '' and not exists_commit(git_path, repo, commit):
-        run('{} -C {} fetch --all'.format(git_path, repo))
+    if commit != 'HEAD' and not exists_commit(git_path, repo, commit):
+        subprocess.run([git_path, "-C", repo, "fetch", "--all"])
 
     if not (worktree / '.git').exists():
-        detach_or_orphan_flag = '--detach'
-        if commit == '' and not exists_commit(git_path, repo, 'HEAD'):
-            detach_or_orphan_flag = '--orphan -b main'
-        run(
-            '{} -C {} worktree add -f {} {} {}'
-                .format(git_path, repo, detach_or_orphan_flag, worktree, commit)
-        )
+        if commit == 'HEAD' and not exists_commit(git_path, repo, 'HEAD'):
+            subprocess.run(
+                    [git_path, "-C", repo, "worktree", "add", "-f", '--orphan', '-b', 'main', worktree],
+                    capture_output=True,encoding='utf-8'
+                    )
+        else:
+            subprocess.run(
+                    [git_path, "-C", repo, "worktree", "add", "-f", '--detach', worktree, commit],
+                    capture_output=True,encoding='utf-8'
+                    )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
@@ -255,7 +262,7 @@ def load_config():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('url', type=str)
-    parser.add_argument('--git_path', type=str)
+    parser.add_argument('--git_path', type=str, default=None)
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', type=bool, default=True)
@@ -263,15 +270,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
 
-    config = load_config()
-    assert(config != None)
-    repo_dir = pathlib.Path(config["repo_dir"]).absolute()
-    git_path = pathlib.Path(config["git_path"]).absolute()
+    file_config = load_config()
+    assert(file_config != None)
+    repo_dir = pathlib.Path(file_config["repo_dir"]).absolute()
 
     config = {}
-    config["git_path"] = git_path
     if args.git_path != None:
         config["git_path"] = pathlib.Path(args.git_path).absolute()
+    else:
+        config["git_path"] = pathlib.Path(file_config["git_path"]).absolute()
+    assert(config["git_path"] != None)
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)
