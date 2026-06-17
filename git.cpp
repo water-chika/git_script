@@ -8,8 +8,7 @@
 
 #if WIN32
 #include <process.h>
-#define GIT_PATH "C:/Program Files/Git/git.exe"
-#define PYTHON_PATH "C:/Program Files/Python/python.exe"
+#define GIT_PATH "C:/Program Files/Git/cmd/git.exe"
 #else
 #include <unistd.h>
 #define GIT_PATH "/usr/bin/git"
