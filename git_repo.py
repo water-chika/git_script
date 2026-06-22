@@ -167,17 +167,18 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir):
                 [git_path, '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
                 capture_output=True,encoding='utf-8'
                 )
-        remote_branch = res.stdout.split()[2]
-        print(remote_branch)
-        branch = remote_branch[7:]
-        subprocess.run(
-                [git_path, "-C", repo, "branch", "--track", branch, remote_branch],
-                capture_output=True,encoding='utf-8'
-                )
-        subprocess.run(
-                [git_path, "-C", repo, "reset", "--soft", branch],
-                capture_output=True,encoding='utf-8'
-                )
+        if res != '':
+            remote_branch = res.stdout.split()[2]
+            print(remote_branch)
+            branch = remote_branch[7:]
+            subprocess.run(
+                    [git_path, "-C", repo, "branch", "--track", branch, remote_branch],
+                    capture_output=True,encoding='utf-8'
+                    )
+            subprocess.run(
+                    [git_path, "-C", repo, "reset", "--soft", branch],
+                    capture_output=True,encoding='utf-8'
+                    )
 
     if commit != 'HEAD' and not exists_commit(git_path, repo, commit):
         subprocess.run([git_path, "-C", repo, "fetch", "--all"])
