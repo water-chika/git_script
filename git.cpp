@@ -39,8 +39,21 @@ int main(int argc, char* argv[]) {
     else if (argc == 4 && strcmp(argv[1], "submodule") == 0 &&
             strcmp(argv[2], "add") == 0 &&
             argv[3][0] != '-') {
-        exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[3]);
-        exec_l(GIT_PATH, GIT_PATH, "submodule", "add", argv[3]);
+        pid_t ret = fork();
+        if (ret == 0) {
+            return exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[3]);
+        }
+        else {
+            if (ret == -1) {
+                std::cerr << "fork failed" << std::endl;
+                return -1
+            }
+            else {
+                int wstatus = 0;
+                wait(&wstatus);
+            }
+            return exec_l(GIT_PATH, GIT_PATH, "submodule", "add", argv[3]);
+        }
     }
     else {
         return exec_v(GIT_PATH, argv);
