@@ -36,6 +36,12 @@ int main(int argc, char* argv[]) {
     else if (argc == 4 && strcmp(argv[1], "clone") == 0 && argv[2][0] != '-' && argv[3][0] != '-') {
         return exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2], "--worktree", argv[3]);
     }
+    else if (argc == 4 && strcmp(argv[1], "submodule") == 0 &&
+            strcmp(argv[2], "add") == 0 &&
+            argv[3][0] != '-') {
+        exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[3]);
+        exec_l(GIT_PATH, GIT_PATH, "submodule", "add", argv[3]);
+    }
     else {
         return exec_v(GIT_PATH, argv);
     }
