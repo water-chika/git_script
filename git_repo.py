@@ -184,16 +184,10 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir):
         subprocess.run([git_path, "-C", repo, "fetch", "--all"])
 
     if not (worktree / '.git').exists():
-        if commit == 'HEAD' and not exists_commit(git_path, repo, 'HEAD'):
-            subprocess.run(
-                    [git_path, "-C", repo, "worktree", "add", "-f", '--orphan', '-b', 'main', worktree],
-                    capture_output=True,encoding='utf-8'
-                    )
-        else:
-            subprocess.run(
-                    [git_path, "-C", repo, "worktree", "add", "-f", '--detach', worktree, commit],
-                    capture_output=True,encoding='utf-8'
-                    )
+        subprocess.run(
+                [git_path, "-C", repo, "worktree", "add", "-f", '--detach', worktree, commit],
+                capture_output=True,encoding='utf-8'
+                )
 
     if recursive:
         orig_wd = pathlib.Path('.').absolute()
