@@ -18,6 +18,7 @@ int exec_v(const char* path, char* argv[]) {
 }
 #else
 #include <unistd.h>
+#include <sys/wait.h>
 #define GIT_PATH "/usr/bin/git"
 
 template<typename... Argv>
@@ -46,7 +47,7 @@ int main(int argc, char* argv[]) {
         else {
             if (ret == -1) {
                 std::cerr << "fork failed" << std::endl;
-                return -1
+                return -1;
             }
             else {
                 int wstatus = 0;
