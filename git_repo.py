@@ -264,7 +264,7 @@ if __name__ == '__main__':
     parser.add_argument('--git_path', type=str, default=None)
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
-    parser.add_argument('--recursive', type=bool, default=True)
+    parser.add_argument('--recursive', action='store_true', default=False)
     parser.add_argument('--cores')
     args = parser.parse_args()
     print(args)

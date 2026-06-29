@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('submodules', nargs='*', type=str)
-    parser.add_argument('--recursive', type=bool, default=True)
+    parser.add_argument('--recursive', action='store_true', default=False)
     parser.add_argument('--cores')
     args = parser.parse_args()
 
