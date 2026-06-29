@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('submodules', nargs='*', type=str)
     parser.add_argument('--recursive', action='store_true', default=False)
+    parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--cores')
     args = parser.parse_args()
 
@@ -51,5 +52,6 @@ if __name__ == '__main__':
                 config["recursive"] = args.recursive
                 config["repo_dir"] = repo_dir
                 config["parent_url"] = parent_url
+                config["prompt"] = args.prompt
                 print(config)
                 git_repo.update_submodule(**config)

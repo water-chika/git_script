@@ -7,6 +7,7 @@ import json
 import subprocess
 from urllib.parse import urlparse
 import shutil
+import inputimeout
 
 from is_same_repo import is_same_repo,remove_git_suffix
 
@@ -111,7 +112,7 @@ def add_url_to_repo(git_path, url, repo):
                 ]
             )
 
-def get_repo(git_path, url, repo_dir):
+def get_repo(git_path, url, repo_dir, prompt):
     name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
@@ -133,6 +134,12 @@ def get_repo(git_path, url, repo_dir):
         elif same_repo_url_in(url, remotes.values()):
             add_url_to_repo(git_path, url, repo)
             return repo
+        elif prompt:
+            print("url: ", url, "repo remotes: ", remotes)
+            answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=5)
+            if answer == "Y":
+                add_url_to_repo(git_path, url, repo)
+                return repo
         else:
             repo_index = repo_index + 1
             repo = repo_dir / (name + '_{}').format(repo_index)
@@ -145,9 +152,9 @@ def exists_commit(git_path, repo, commit):
             )
     return 0 == res.returncode
 
-def fun(git_path, url, worktree, commit, recursive, repo_dir):
+def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
     worktree = pathlib.Path(worktree).absolute()
-    repo = get_repo(git_path, url, repo_dir)
+    repo = get_repo(git_path, url, repo_dir, prompt)
     if commit == None or commit == '':
         commit = 'HEAD'
     if not repo.exists():
@@ -265,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', action='store_true', default=False)
+    parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--cores')
     args = parser.parse_args()
     print(args)
@@ -288,5 +296,6 @@ if __name__ == '__main__':
     config["recursive"] = args.recursive
     config["repo_dir"] = repo_dir
     config['commit'] = args.commit
+    config['prompt'] = args.prompt
     print(config)
     fun(**config)

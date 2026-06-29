@@ -16,6 +16,13 @@ int exec_l(const char* path, Argv... argv){
 int exec_v(const char* path, char* argv[]) {
     return spawnv(_P_WAIT, path, argv);
 }
+template<typename... Argv>
+int exec_lp(const char* path, Argv... argv){
+    return spawnlp(_P_WAIT, path, argv..., NULL);
+}
+int exec_vp(const char* path, char* argv[]) {
+    return spawnvp(_P_WAIT, path, argv);
+}
 #else
 #include <unistd.h>
 #include <sys/wait.h>
@@ -28,21 +35,28 @@ int exec_l(const char* path, Argv... argv){
 int exec_v(const char* path, char** argv) {
     return execv(path, argv);
 }
+template<typename... Argv>
+int exec_lp(const char* path, Argv... argv){
+    return execlp(path, argv..., NULL);
+}
+int exec_vp(const char* path, char** argv) {
+    return execvp(path, argv);
+}
 #endif
 
 int main(int argc, char* argv[]) {
     if (argc == 3 && strcmp(argv[1], "clone") == 0 && argv[2][0] != '-') {
-        return exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2]);
+        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2]);
     }
     else if (argc == 4 && strcmp(argv[1], "clone") == 0 && argv[2][0] != '-' && argv[3][0] != '-') {
-        return exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2], "--worktree", argv[3]);
+        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[2], "--worktree", argv[3]);
     }
     else if (argc == 4 && strcmp(argv[1], "submodule") == 0 &&
             strcmp(argv[2], "add") == 0 &&
             argv[3][0] != '-') {
         pid_t ret = fork();
         if (ret == 0) {
-            return exec_l(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[3]);
+            return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, argv[3]);
         }
         else {
             if (ret == -1) {
@@ -53,11 +67,11 @@ int main(int argc, char* argv[]) {
                 int wstatus = 0;
                 wait(&wstatus);
             }
-            return exec_l(GIT_PATH, GIT_PATH, "submodule", "add", argv[3]);
+            return exec_lp(GIT_PATH, GIT_PATH, "submodule", "add", argv[3]);
         }
     }
     else {
-        return exec_v(GIT_PATH, argv);
+        return exec_vp(GIT_PATH, argv);
     }
     return 0;
 }
