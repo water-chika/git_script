@@ -264,15 +264,15 @@ def load_config():
         with open(config_file, "r") as config_file:
             config = json.load(config_file)
     return config
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('url', type=str)
+    parser.add_argument('url', type=str, nargs='?')
     parser.add_argument('--git_path', type=str, default=None)
     parser.add_argument('--commit', type=str, default='')
     parser.add_argument('--worktree', type=str)
     parser.add_argument('--recursive', action='store_true', default=False)
     parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--init', action='store_true', default=False)
     parser.add_argument('--cores')
     args = parser.parse_args()
     print(args)
@@ -281,12 +281,28 @@ if __name__ == '__main__':
     assert(file_config != None)
     repo_dir = pathlib.Path(file_config["repo_dir"]).absolute()
 
+
     config = {}
+    git_path = None
     if args.git_path != None:
-        config["git_path"] = pathlib.Path(args.git_path).absolute()
+        git_path = pathlib.Path(args.git_path).absolute()
     else:
-        config["git_path"] = pathlib.Path(file_config["git_path"]).absolute()
-    assert(config["git_path"] != None)
+        git_path = pathlib.Path(file_config["git_path"]).absolute()
+    assert(git_path != None)
+    if args.init:
+        if args.worktree == None:
+            print("--worktree <worktree> is required")
+            return
+        worktree =pathlib.Path(args.worktree).absolute()
+        repo_name = worktree.name
+        if (repo_dir / repo_name).exists():
+            print("repo exists, do not init existing repo")
+            return
+        subprocess.run([git_path, 'init', '--bare', '-b', 'main', repo_dir / repo_name])
+        subprocess.run([git_path, '-C', repo_dir / repo_name, 'worktree', 'add', '--orphan', '-b', 'main', '-f', worktree])
+        return
+
+    config["git_path"] = git_path
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)
@@ -299,3 +315,5 @@ if __name__ == '__main__':
     config['prompt'] = args.prompt
     print(config)
     fun(**config)
+if __name__ == '__main__':
+    main()
