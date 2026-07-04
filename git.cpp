@@ -73,6 +73,12 @@ int main(int argc, char* argv[]) {
     else if (argc == 3 && strcmp(argv[1], "init") == 0 && argv[2][0] != '-') {
         return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, "--init", "--worktree", argv[2]);
     }
+    else if (argc == 5 && strcmp(argv[1], "submodule") == 0 &&
+            strcmp(argv[2], "update") == 0 &&
+            strcmp(argv[3], "--init") == 0 &&
+            strcmp(argv[4], "--recursive") == 0) {
+        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH, ".");
+    }
     else {
         return exec_vp(GIT_PATH, argv);
     }

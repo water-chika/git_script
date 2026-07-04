@@ -45,7 +45,7 @@ def parse_submodules(path):
         print('parse submodules fail')
     return submodules
 
-def update_submodule(git_path, submodule, recursive, repo_dir, parent_url):
+def update_submodule(git_path, submodule, recursive, repo_dir, parent_url, prompt):
     print('recursive', submodule)
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print('resolved submodule url', submodule['url'])
@@ -54,7 +54,7 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url):
     print(status_output)
     if status_output.stdout != '':
         commit = status_output.stdout.split()[0][1:]
-        fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir)
+        fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, prompt=prompt)
         subprocess.run([git_path, "submodule", "update", "--init", submodule["path"]])
         subprocess.run([git_path, "submodule", "update", submodule["path"]])
     else:
