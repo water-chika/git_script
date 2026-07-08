@@ -7,7 +7,6 @@ import json
 import subprocess
 from urllib.parse import urlparse
 import shutil
-import inputimeout
 
 from is_same_repo import is_same_repo,remove_git_suffix
 
@@ -136,10 +135,14 @@ def get_repo(git_path, url, repo_dir, prompt):
             return repo
         elif prompt:
             print("url: ", url, "repo remotes: ", remotes)
-            answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=5)
-            if answer == "Y":
-                add_url_to_repo(git_path, url, repo)
-                return repo
+            try:
+                import inputimeout
+                answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=5)
+                if answer == "Y":
+                    add_url_to_repo(git_path, url, repo)
+                    return repo
+            except e:
+                print(e)
         else:
             repo_index = repo_index + 1
             repo = repo_dir / (name + '_{}').format(repo_index)
