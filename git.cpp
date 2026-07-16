@@ -12,13 +12,14 @@
 #define GIT_PATH "C:/Program Files/Git/cmd/git.exe"
 std::string process_escape_character(const char* str) {
     std::string res{};
+    std::string_view str_view{str};
+    bool contain_space = str_view.end() != std::find(str_view.begin(), str_view.end(), ' ');
+    if (contain_space) { res.push_back('\"'); }
     while (*str != '\0') {
-        if (*str == '"' || *str == '\'') {
-            res.push_back('\\');
-        }
         res.push_back(*str);
         str++;
     }
+    if (contain_space) { res.push_back('\"'); }
     return res;
 }
 template<typename... Argv>
