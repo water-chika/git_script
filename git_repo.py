@@ -177,7 +177,7 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
                 [git_path, '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
                 capture_output=True,encoding='utf-8'
                 )
-        if res != '':
+        if res.stdout != '':
             remote_branch = res.stdout.split()[2]
             print(remote_branch)
             branch = remote_branch[7:]
