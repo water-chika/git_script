@@ -21,6 +21,15 @@ if (NOT EXISTS "${GIT_PATH}")
 message(FATAL_ERROR "not exists original git path: ${GIT_PATH}")
 endif()
 
+file(GENERATE OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/config.json
+    CONTENT
+"{
+    \"repo_dir\": \"/Repos\",
+    \"build_dir\": \"/builds\",
+    \"git_path\": \"${GIT_PATH}\"
+}"
+)
+
 add_executable(git
     git.cpp
 )
