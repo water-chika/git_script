@@ -9,7 +9,6 @@
 
 #if WIN32
 #include <process.h>
-#define GIT_PATH "C:/Program Files/Git/cmd/git.exe"
 std::string process_escape_character(const char* str) {
     std::string res{};
     std::string_view str_view{str};
@@ -101,7 +100,6 @@ int fork_exec_lp(const char* path, Argv... argv) {
 #else
 #include <unistd.h>
 #include <sys/wait.h>
-#define GIT_PATH "/usr/bin/git"
 
 template<typename... Argv>
 int exec_l(const char* path, Argv... argv){
@@ -161,7 +159,12 @@ int main(int argc, char* argv[]) {
         return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH, ".");
     }
     else {
-        return exec_vp(GIT_PATH, argv);
+        if (exists(std::filesystem::path(GIT_PATH))) {
+            return exec_vp(GIT_PATH, argv);
+        }
+        else {
+            std::cerr << std::format("path not exist: {}", GIT_PATH) << std::endl;
+        }
     }
     return 0;
 }
