@@ -24,13 +24,15 @@ std::string process_escape_character(const char* str) {
 template<typename... Argv>
 int exec_l(const char* path, Argv... argv){
     auto args = std::vector<const char*>{argv...};
-    std::vector<std::string> processed_args{};
-    for (auto& arg : args) {
-        processed_args.push_back(
-            process_escape_character(arg)
-        );
-        arg = processed_args.back().data();
-    }
+    std::vector<std::string> processed_args(args.size());
+    std::transform(args.begin(), args.end(),
+        processed_args.begin(),
+        process_escape_character
+    );
+    std::transform(processed_args.begin(), processed_args.end(),
+        args.begin(),
+        [](auto& str) { return str.data(); }
+    );
     args.push_back(NULL);
     return spawnv(_P_WAIT, path, args.data());
 }
@@ -54,14 +56,16 @@ int exec_v(const char* path, char* argv[]) {
 }
 template<typename... Argv>
 int exec_lp(const char* path, Argv... argv){
-    auto args = std::vector<const char*>{argv...};
-    std::vector<std::string> processed_args{};
-    for (auto& arg : args) {
-        processed_args.push_back(
-            process_escape_character(arg)
-        );
-        arg = processed_args.back().data();
-    }
+    auto args = std::vector<const char*>{ argv... };
+    std::vector<std::string> processed_args(args.size());
+    std::transform(args.begin(), args.end(),
+        processed_args.begin(),
+        process_escape_character
+    );
+    std::transform(processed_args.begin(), processed_args.end(),
+        args.begin(),
+        [](auto& str) { return str.data(); }
+    );
     args.push_back(NULL);
     assert(args.size() > 1);
     return spawnvp(_P_WAIT, path, args.data());
