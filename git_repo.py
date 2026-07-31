@@ -137,15 +137,14 @@ def get_repo(git_path, url, repo_dir, prompt):
             print("url: ", url, "repo remotes: ", remotes)
             try:
                 import inputimeout
-                answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=5)
+                answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=600)
                 if answer == "Y":
                     add_url_to_repo(git_path, url, repo)
                     return repo
-            except e:
-                print(e)
-        else:
-            repo_index = repo_index + 1
-            repo = repo_dir / (name + '_{}').format(repo_index)
+            except:
+                pass
+        repo_index = repo_index + 1
+        repo = repo_dir / (name + '_{}').format(repo_index)
     return repo
 
 def exists_commit(git_path, repo, commit):
