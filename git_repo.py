@@ -52,7 +52,9 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url, promp
                                    capture_output=True, encoding='utf-8')
     print(status_output)
     if status_output.stdout != '':
-        commit = status_output.stdout.split()[0][1:]
+        commit = status_output.stdout.split()[0]
+        if commit.startswith('-'):
+            commit = commit[1:]
         fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, prompt=prompt)
         subprocess.run([git_path, "submodule", "update", "--init", submodule["path"]])
         subprocess.run([git_path, "submodule", "update", submodule["path"]])
@@ -149,8 +151,7 @@ def get_repo(git_path, url, repo_dir, prompt):
 
 def exists_commit(git_path, repo, commit):
     res = subprocess.run(
-            [git_path, '-C', repo, 'rev-list', '--quiet', '--max-count', '1', commit],
-            capture_output=True
+            [git_path, '-C', repo, 'rev-list', '--quiet', '--max-count', '1', commit]
             )
     return 0 == res.returncode
 
