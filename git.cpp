@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
             strcmp(argv[2], "update") == 0 &&
             strcmp(argv[3], "--init") == 0 &&
             strcmp(argv[4], "--recursive") == 0) {
-        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH, ".");
+        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH, "--recursive", ".");
     }
     else {
         if (exists(std::filesystem::path(GIT_PATH))) {

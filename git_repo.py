@@ -59,7 +59,7 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url, promp
     else:
         print("submodule commit get fail")
 
-def for_submodules(git_path, submodules, recursive, repo_dir, parent_url):
+def for_submodules(git_path, submodules, recursive, repo_dir, parent_url, prompt):
     args_vector = []
     for submodule in submodules:
         args = []
@@ -70,13 +70,13 @@ def for_submodules(git_path, submodules, recursive, repo_dir, parent_url):
         args_vector.append(args)
         update_submodule(git_path, submodule,
                          recursive=recursive, repo_dir=repo_dir,
-                         parent_url=parent_url)
+                         parent_url=parent_url,prompt=prompt)
 
-def update_submodules(git_path, recursive, repo_dir, url):
+def update_submodules(git_path, recursive, repo_dir, url, prompt):
     assert(pathlib.Path('.git').exists())
     if pathlib.Path('.gitmodules').exists():
         submodules = parse_submodules('.gitmodules')
-        for_submodules(git_path, submodules, recursive, repo_dir=repo_dir, parent_url=url)
+        for_submodules(git_path, submodules, recursive, repo_dir=repo_dir, parent_url=url, prompt=prompt)
 
 def resolve_url(url):
     while ".." in url:
@@ -203,7 +203,7 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
-            update_submodules(git_path, recursive, repo_dir=repo_dir, url=url)
+            update_submodules(git_path, recursive, repo_dir=repo_dir, url=url, prompt=prompt)
         finally:
             os.chdir(orig_wd)
 
