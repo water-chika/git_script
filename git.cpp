@@ -6,6 +6,7 @@
 #include <optional>
 #include <cstring>
 #include <cassert>
+#include <format>
 
 #if WIN32
 #include <process.h>
