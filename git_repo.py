@@ -112,8 +112,9 @@ def add_url_to_repo(git_path, url, repo):
                 git_path,'-C',repo,'remote', 'add', remote_name, url
                 ]
             )
+    return remote_name
 
-def get_repo(git_path, url, repo_dir, prompt):
+def get_repo_and_remote(git_path, url, repo_dir, prompt):
     name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
@@ -121,6 +122,7 @@ def get_repo(git_path, url, repo_dir, prompt):
         config = repo / 'config'
         remotes = {}
         remote_name = None
+        url_remotes = {}
         with open(config, 'r') as file:
             lines = file.readlines()
             for line in lines:
@@ -128,26 +130,28 @@ def get_repo(git_path, url, repo_dir, prompt):
                     remote_name = line.split('"')[1]
                 elif remote_name not in remotes and \
                 line.startswith('\turl = '):
-                    remotes[remote_name] = line.split(' ')[2].rstrip()
-        print(remotes)
+                    this_url = line.split(' ')[2].rstrip()
+                    remotes[remote_name] = this_url
+                    url_remotes[this_url] = remote_name
+        print(remotes, url_remotes)
         if url in remotes.values():
-            return repo
+            return repo,url_remotes[url]
         elif same_repo_url_in(url, remotes.values()):
             add_url_to_repo(git_path, url, repo)
-            return repo
+            return repo,url_remotes[url]
         elif prompt:
             print("url: ", url, "repo remotes: ", remotes)
             try:
                 import inputimeout
                 answer = inputimeout.inputimeout(prompt="Is this same repo?(Y/N):", timeout=600)
                 if answer == "Y":
-                    add_url_to_repo(git_path, url, repo)
-                    return repo
+                    remote_name = add_url_to_repo(git_path, url, repo)
+                    return repo,remote_name
             except:
                 pass
         repo_index = repo_index + 1
         repo = repo_dir / (name + '_{}').format(repo_index)
-    return repo
+    return repo,'origin'
 
 def exists_commit(git_path, repo, commit):
     res = subprocess.run(
@@ -157,7 +161,7 @@ def exists_commit(git_path, repo, commit):
 
 def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
     worktree = pathlib.Path(worktree).absolute()
-    repo = get_repo(git_path, url, repo_dir, prompt)
+    repo,remote = get_repo_and_remote(git_path, url, repo_dir, prompt)
     if commit == None or commit == '':
         commit = 'HEAD'
     if not repo.exists():
@@ -191,7 +195,10 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
                     )
 
     if commit != 'HEAD' and not exists_commit(git_path, repo, commit):
-        subprocess.run([git_path, "-C", repo, "fetch", "--all"])
+        subprocess.run([git_path, "-C", repo, "fetch", remote, commit])
+    elif commit == 'HEAD':
+        subprocess.run([git_path, "-C", repo, "fetch", remote])
+        commit = remote + '/HEAD'
 
     if not (worktree / '.git').exists():
         subprocess.run(
