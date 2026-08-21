@@ -106,7 +106,7 @@ def same_repo_url_in(url, urls):
 
 def add_url_to_repo(git_path, url, repo):
     parsed_url = urlparse(url)
-    remote_name = parsed_url.scheme + '_' + parsed_url.path.replace('/', '_').replace('.', '_')
+    remote_name = parsed_url.scheme.replace('@',_) + '_' + parsed_url.path.replace('/', '_').replace('.', '_')
     subprocess.run(
             [
                 git_path,'-C',repo,'remote', 'add', remote_name, url
