@@ -48,13 +48,16 @@ def find_repos(repo_dir):
                   key=lambda p: p.name.lower())
 
 
-def non_interactive_env():
+def non_interactive_env(ssh_command=None):
     """Never let a fetch stop on a credential/host-key prompt."""
     env = dict(os.environ)
     env['GIT_TERMINAL_PROMPT'] = '0'
     env['GIT_ASKPASS'] = 'echo'
     env['SSH_ASKPASS'] = 'echo'
-    env.setdefault('GIT_SSH_COMMAND', 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no')
+    if ssh_command:
+        env['GIT_SSH_COMMAND'] = ssh_command
+    else:
+        env.setdefault('GIT_SSH_COMMAND', 'ssh -o BatchMode=yes')
     env.pop('GIT_DIR', None)
     return env
 
@@ -95,7 +98,7 @@ def kill_tree(process):
         pass
 
 
-def run_git(command, timeout, output_file):
+def run_git(command, timeout, output_file, ssh_command=None):
     """Run git with output going to a real file, never to a pipe.
 
     Returns (returncode_or_None, text). ``None`` means the timeout fired.
@@ -104,7 +107,7 @@ def run_git(command, timeout, output_file):
     if os.name != 'nt':
         kwargs['start_new_session'] = True
     with open(output_file, 'w+', encoding='utf-8', errors='replace') as sink:
-        process = subprocess.Popen(command, env=non_interactive_env(),
+        process = subprocess.Popen(command, env=non_interactive_env(ssh_command),
                                    stdin=subprocess.DEVNULL, stdout=sink,
                                    stderr=subprocess.STDOUT, **kwargs)
         try:
@@ -116,17 +119,20 @@ def run_git(command, timeout, output_file):
         return returncode, sink.read()
 
 
-def fetch_repo(git_path, repo, timeout, gc, out_dir):
+def fetch_repo(git_path, repo, timeout, gc, out_dir, ssh_command=None):
     """Fetch one bare repo. Returns (name, ok, seconds, message)."""
     start = time.monotonic()
     output_file = out_dir / (repo.name + '.log')
     command = [
         git_path, '--git-dir', str(repo),
         '-c', 'gc.auto=0',
-        'fetch', '--all', '--prune', '--tags', '--quiet',
+        # No --tags: several repos have two remotes for the same project and
+        # the second one then fails the whole fetch with "would clobber
+        # existing tag". Default tag auto-following is enough for a cache.
+        'fetch', '--all', '--prune', '--verbose',
     ]
     try:
-        returncode, text = run_git(command, timeout, output_file)
+        returncode, text = run_git(command, timeout, output_file, ssh_command)
     except OSError as error:
         return repo.name, False, time.monotonic() - start, str(error)
 
@@ -139,7 +145,7 @@ def fetch_repo(git_path, repo, timeout, gc, out_dir):
 
     if gc:
         run_git([git_path, '--git-dir', str(repo), 'gc', '--auto', '--quiet'],
-                timeout, output_file)
+                timeout, output_file, ssh_command)
     return repo.name, True, elapsed, ''
 
 
@@ -169,7 +175,8 @@ def update_all(args, git_path, repo_dir):
     out_dir.mkdir(exist_ok=True)
     failed = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(fetch_repo, git_path, repo, args.timeout, args.gc, out_dir)
+        futures = [pool.submit(fetch_repo, git_path, repo, args.timeout, args.gc,
+                               out_dir, args.ssh_command)
                    for repo in repos]
         for future in concurrent.futures.as_completed(futures):
             name, ok, elapsed, message = future.result()
@@ -237,6 +244,9 @@ def main():
     parser.add_argument('--exclude', nargs='+', default=None, help='skip these repo names')
     parser.add_argument('--gc', action='store_true', default=False,
                         help='run "git gc --auto" after a successful fetch')
+    parser.add_argument('--ssh-command', type=str, default=None,
+                        help='GIT_SSH_COMMAND to use (e.g. a plink.exe path when the '
+                             'system ssh stalls on piped output)')
     parser.add_argument('--log', type=str, default=None, help='append output to this file')
     parser.add_argument('--list', action='store_true', default=False,
                         help='list the repos that would be updated and exit')
