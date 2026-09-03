@@ -103,7 +103,9 @@ def for_submodules(git_path, submodules, recursive, repo_dir, parent_url, prompt
                          parent_url=parent_url,prompt=prompt)
 
 def update_submodules(git_path, recursive, repo_dir, url, prompt):
-    assert(pathlib.Path('.git').exists())
+    if not pathlib.Path('.git').exists():
+        print("not a git worktree, skip:", pathlib.Path('.').absolute())
+        return
     if pathlib.Path('.gitmodules').exists():
         submodules = parse_submodules('.gitmodules')
         for_submodules(git_path, submodules, recursive, repo_dir=repo_dir, parent_url=url, prompt=prompt)
@@ -235,6 +237,12 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
                 )
 
     if recursive:
+        if not (worktree / '.git').exists():
+            # An earlier step (clone/fetch/worktree add) failed, so there is
+            # nothing to recurse into. Report it instead of aborting the whole
+            # recursive update with a FileNotFoundError or an AssertionError.
+            print("skip recursion, worktree was not created:", worktree)
+            return
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
@@ -264,10 +272,17 @@ def git_dir(path):
         contain_git = (path / '.git').exists()
     gitdir_path = path / '.git'
     if gitdir_path.is_file():
+        # A `.git` file appears both for a linked worktree and for a submodule.
+        # Its `gitdir:` target is relative to the directory holding the file,
+        # not to the current working directory.
         with open(gitdir_path) as file:
             line = file.readline()
-            gitdir_path = pathlib.Path(line.split(' ')[1].rstrip()).absolute()
-            with open(gitdir_path / 'commondir') as file:
+        gitdir_path = (path / line.split(' ', 1)[1].rstrip()).resolve()
+        # Only a linked worktree has `commondir` pointing at the real git dir;
+        # a submodule's gitdir already is one.
+        commondir_path = gitdir_path / 'commondir'
+        if commondir_path.exists():
+            with open(commondir_path) as file:
                 line = file.readline().rstrip()
                 gitdir_path = (gitdir_path / line).resolve()
     print(gitdir_path)
