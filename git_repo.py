@@ -10,6 +10,28 @@ import shutil
 
 from is_same_repo import is_same_repo,remove_git_suffix
 
+def submodule_git_options(url):
+    """Extra `git -c` options needed to update a submodule from `url`.
+
+    Only file:// mirrors (e.g. a sshfs-mounted checkout of another machine)
+    need them, so remotes that speak a real transport keep stock behaviour.
+    """
+    if not str(url).startswith('file://'):
+        return []
+    return [
+        # A submodule url is resolved relative to the superproject's own
+        # remote, so a file:// mirror is exactly as trusted as the parent that
+        # was already cloned from it. git has refused file transport for
+        # submodules since CVE-2022-39253.
+        '-c', 'protocol.file.allow=always',
+        # There is no LFS server behind a plain path, so the smudge filter
+        # fails and aborts the checkout. Leave LFS pointers in the worktree
+        # instead of losing the entire checkout over them.
+        '-c', 'filter.lfs.smudge=',
+        '-c', 'filter.lfs.process=',
+        '-c', 'filter.lfs.required=false',
+    ]
+
 def parse_submodules(path):
     submodules = []
     try:
@@ -48,16 +70,22 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url, promp
     print('recursive', submodule)
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print('resolved submodule url', submodule['url'])
-    status_output = subprocess.run([git_path, 'submodule', 'status', submodule['path']],
+    # --cached reports the commit the superproject records, rather than the one
+    # currently checked out; without it an out-of-sync submodule (status prefix
+    # '+') would be re-fetched and pinned at its stale checkout.
+    status_output = subprocess.run([git_path, 'submodule', 'status', '--cached', submodule['path']],
                                    capture_output=True, encoding='utf-8')
     print(status_output)
     if status_output.stdout != '':
         commit = status_output.stdout.split()[0]
-        if commit.startswith('-'):
+        # A status line is prefixed '-' (uninitialised), '+' (checked out
+        # commit differs) or 'U' (merge conflict); the rest is the sha.
+        if commit[0] in '-+U':
             commit = commit[1:]
         fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, prompt=prompt)
-        subprocess.run([git_path, "submodule", "update", "--init", submodule["path"]])
-        subprocess.run([git_path, "submodule", "update", submodule["path"]])
+        options = submodule_git_options(submodule["url"])
+        subprocess.run([git_path, *options, "submodule", "update", "--init", submodule["path"]])
+        subprocess.run([git_path, *options, "submodule", "update", submodule["path"]])
     else:
         print("submodule commit get fail")
 
