@@ -2,6 +2,7 @@
 
 import pathlib
 import os
+import sys
 import argparse
 import json
 import subprocess
@@ -9,6 +10,156 @@ from urllib.parse import urlparse
 import shutil
 
 from is_same_repo import is_same_repo,remove_git_suffix
+
+# --- Windows portability: configurable roots + honest platform checks ------
+#
+# This machine's standing convention (see the git-workflow skill) is
+# `cd /mnt/worktrees && yes Y | git clone <url>`: bare repos live under one
+# root, checkouts (worktrees) under another. Both roots used to be reachable
+# only via this machine's own config.json (repo_dir) or, for the worktree
+# side, purely by the caller's cwd. Making both explicitly configurable -
+# with a sensible platform default and an env override - is what lets a role
+# running natively on Windows (no /mnt anything) use the exact same
+# convention against C:/repos and C:/worktrees, without editing this file.
+#
+# Precedence for both roots (highest wins): CLI flag > env var > this
+# machine's config.json > platform default. On THIS machine, config.json
+# already pins repo_dir to /mnt/repos and no env var is set, so every
+# existing invocation resolves to exactly the same path as before this
+# change - nothing here alters current Linux behaviour.
+
+REPOS_ROOT_ENV = "GIT_REPO_REPOS_ROOT"
+WORKTREES_ROOT_ENV = "GIT_REPO_WORKTREES_ROOT"
+GIT_PATH_ENV = "GIT_REPO_GIT_PATH"
+
+WINDOWS_MAX_PATH = 260  # legacy MAX_PATH; a checkout at/near this is a real,
+                        # confusing git failure on Windows, not a wrapper bug.
+
+
+def _is_windows(platform=None):
+    """True if `platform` (defaults to sys.platform) names a Windows host.
+    Takes an explicit override purely so the Windows-specific branches below
+    are unit-testable from a Linux box - there is no Windows machine to test
+    this on in this pass."""
+    return (platform or sys.platform).startswith("win")
+
+
+def default_repo_dir(platform=None):
+    return pathlib.Path("C:/repos") if _is_windows(platform) else pathlib.Path("/mnt/repos")
+
+
+def default_worktrees_dir(platform=None):
+    return pathlib.Path("C:/worktrees") if _is_windows(platform) else pathlib.Path("/mnt/worktrees")
+
+
+def default_git_path(platform=None):
+    # Matches this project's own CMakeLists.txt GIT_PATH defaults, so a
+    # Windows install without config.json yet still finds the git a normal
+    # "Git for Windows" install places there.
+    if _is_windows(platform):
+        return pathlib.Path("C:/Program Files/Git/cmd/git.exe")
+    return pathlib.Path("/usr/bin/git")
+
+
+def _resolve_root(cli_value, file_config, config_key, env_key, default_fn,
+                   env=None, platform=None):
+    """CLI flag > env var > config.json key > platform default - the one
+    precedence rule shared by repo_dir/worktrees_dir/git_path resolution.
+    Deliberately does NOT force `.absolute()` (unlike the cwd-relative
+    worktree-target path elsewhere in this file): every value here - CLI,
+    env, config.json, or a platform default - is already meant to be an
+    absolute root, and calling `.absolute()` on a `C:/...`-style path while
+    running on a real POSIX host (as the Windows-branch unit tests do, with
+    no Windows box available) would wrongly treat it as cwd-relative,
+    since plain pathlib.Path is POSIX-flavoured on a POSIX host regardless
+    of the injected `platform` override."""
+    env = env if env is not None else os.environ
+    if cli_value:
+        return pathlib.Path(cli_value)
+    if env.get(env_key):
+        return pathlib.Path(env[env_key])
+    if file_config and file_config.get(config_key):
+        return pathlib.Path(file_config[config_key])
+    return default_fn(platform)
+
+
+def resolve_repo_dir(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "repo_dir", REPOS_ROOT_ENV,
+                          default_repo_dir, env=env, platform=platform)
+
+
+def resolve_worktrees_dir(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "worktree_dir", WORKTREES_ROOT_ENV,
+                          default_worktrees_dir, env=env, platform=platform)
+
+
+def resolve_git_path(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "git_path", GIT_PATH_ENV,
+                          default_git_path, env=env, platform=platform)
+
+
+def check_worktree_path_length(worktree, platform=None, limit=WINDOWS_MAX_PATH):
+    """Windows honesty check: a checkout whose path is already near the
+    legacy MAX_PATH (260 chars) will make individual files deep inside it
+    fail with a confusing 'The system cannot find the path specified' from
+    git itself, long after this script has already exited successfully. Only
+    meaningful on Windows (a real long-path-aware filesystem, or Linux, has
+    no such limit) - report it up front instead. Returns (ok, detail)."""
+    if not _is_windows(platform):
+        return True, "no legacy MAX_PATH limit on this platform"
+    length = len(str(pathlib.Path(worktree)))
+    if length >= limit:
+        return False, (
+            f"{worktree} is {length} chars, at/over the legacy Windows "
+            f"MAX_PATH limit ({limit}) - files nested inside this checkout "
+            "will likely fail with a confusing git error later, not now. "
+            "Fix: enable `git config --global core.longpaths true` AND "
+            "`fsutil behavior set symlinkevaluation` /longpaths support "
+            "(Windows 10 1607+, needs the registry policy "
+            "LongPathsEnabled=1, admin required), or clone under a shorter "
+            f"worktrees root (e.g. {default_worktrees_dir('win32')} instead "
+            "of a deeply nested one)."
+        )
+    return True, f"{worktree} is {length} chars, well under the {limit}-char legacy limit"
+
+
+def check_symlink_capable(base_dir, platform=None, symlink_fn=None):
+    """Windows honesty check: unlike Linux, an unprivileged Windows account
+    can only create a symlink if Developer Mode (or an equivalent group
+    policy) is enabled - fixture_home.py in this user's copilot-automation
+    tooling already hit this (OSError WinError 1314) and falls back to
+    directory junctions/hard links. git_repo.py itself never creates a
+    symlink, but role tooling built on top of a cloned worktree (e.g.
+    fixture_home.py) does, so report this honestly up front rather than
+    letting a much later, unrelated-looking failure be the first sign of it.
+    Returns (ok, detail); a no-op (True, ...) on non-Windows platforms -
+    Unix symlinks need no special privilege, so there is nothing to probe
+    and no extra filesystem access on the common path."""
+    if not _is_windows(platform):
+        return True, "not Windows - unprivileged symlinks are the norm here"
+    probe_target = pathlib.Path(base_dir) / ".git_repo_symlink_probe_target"
+    probe_link = pathlib.Path(base_dir) / ".git_repo_symlink_probe_link"
+    do_symlink = symlink_fn or (lambda link, target: link.symlink_to(target))
+    try:
+        probe_target.write_text("probe\n")
+        do_symlink(probe_link, probe_target)
+        return True, "symlink creation succeeded (Developer Mode or equivalent policy is enabled)"
+    except OSError as exc:
+        return False, (
+            f"could not create a symlink under {base_dir}: {exc}. Enable "
+            "Developer Mode (Settings > Privacy & Security > For "
+            "developers) or an equivalent 'create symbolic links' group "
+            "policy before relying on any tool here that symlinks (e.g. "
+            "fixture_home.py) - it will otherwise fail confusingly deep "
+            "inside an unrelated operation."
+        )
+    finally:
+        for p in (probe_link, probe_target):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+
 
 def submodule_git_options(url):
     """Extra `git -c` options needed to update a submodule from `url`.
@@ -189,8 +340,17 @@ def exists_commit(git_path, repo, commit):
             )
     return 0 == res.returncode
 
-def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
+def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt, platform=None):
     worktree = pathlib.Path(worktree).absolute()
+    # Windows honesty checks: report likely-fatal-later conditions up front
+    # instead of a confusing git failure well after this prints "success".
+    # No-ops (and no extra filesystem access) on non-Windows platforms.
+    ok, detail = check_worktree_path_length(worktree, platform=platform)
+    if not ok:
+        print("WARNING:", detail)
+    ok, detail = check_symlink_capable(worktree.parent if worktree.parent.exists() else repo_dir, platform=platform)
+    if not ok:
+        print("NOTE:", detail)
     repo,remote = get_repo_and_remote(git_path, url, repo_dir, prompt)
     if commit == None or commit == '':
         commit = 'HEAD'
@@ -327,21 +487,30 @@ def main():
     parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--init', action='store_true', default=False)
     parser.add_argument('--cores')
+    parser.add_argument('--repo_dir', type=str, default=None,
+                         help="override the bare-repos root (else "
+                              f"${REPOS_ROOT_ENV}, then config.json's "
+                              "repo_dir, then the platform default: "
+                              f"{default_repo_dir()} here)")
+    parser.add_argument('--worktrees_dir', type=str, default=None,
+                         help="the worktrees root used only to sanity-check "
+                              "where a bare --worktree lands (else "
+                              f"${WORKTREES_ROOT_ENV}, then config.json's "
+                              "worktree_dir, then the platform default: "
+                              f"{default_worktrees_dir()} here). Does NOT "
+                              "change the existing cwd-relative default used "
+                              "when --worktree is omitted.")
+    parser.add_argument('--platform', type=str, default=None,
+                         help=argparse.SUPPRESS)  # test-only: force win32/linux branches without a real OS switch
     args = parser.parse_args()
     print(args)
 
     file_config = load_config()
-    assert(file_config != None)
-    repo_dir = pathlib.Path(file_config["repo_dir"]).absolute()
-
+    repo_dir = resolve_repo_dir(file_config, cli_value=args.repo_dir, platform=args.platform)
+    worktrees_dir = resolve_worktrees_dir(file_config, cli_value=args.worktrees_dir, platform=args.platform)
 
     config = {}
-    git_path = None
-    if args.git_path != None:
-        git_path = pathlib.Path(args.git_path).absolute()
-    else:
-        git_path = pathlib.Path(file_config["git_path"]).absolute()
-    assert(git_path != None)
+    git_path = resolve_git_path(file_config, cli_value=args.git_path, platform=args.platform)
     if args.init:
         if args.worktree == None:
             print("--worktree <worktree> is required")
@@ -359,13 +528,25 @@ def main():
     config["url"] = args.url
     if args.worktree == None:
         name = repo_name_from_url(args.url)
+        # Deliberately still cwd-relative, exactly as before this change:
+        # the standing convention (cd /mnt/worktrees && git clone ...) relies
+        # on this. Only report - never silently redirect - if that lands
+        # outside the configured worktrees root.
         config["worktree"] = pathlib.Path(name).absolute()
     else:
         config["worktree"] = pathlib.Path(args.worktree).absolute()
+    try:
+        config["worktree"].relative_to(worktrees_dir)
+    except ValueError:
+        print(f"note: {config['worktree']} is outside the configured "
+              f"worktrees root ({worktrees_dir}); the standing convention is "
+              "to cd there first (or pass --worktrees_dir/--worktree "
+              "explicitly).")
     config["recursive"] = args.recursive
     config["repo_dir"] = repo_dir
     config['commit'] = args.commit
     config['prompt'] = args.prompt
+    config['platform'] = args.platform
     print(config)
     fun(**config)
 if __name__ == '__main__':
