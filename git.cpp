@@ -1,252 +1,265 @@
-#include <iostream>
-#include <filesystem>
-#include <string>
-#include <fstream>
-#include <regex>
-#include <optional>
-#include <cstring>
-#include <cassert>
-#include <format>
 #include <algorithm>
-#include <unordered_set>
+#include <cerrno>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
-#if WIN32
+#if defined(_WIN32)
 #include <process.h>
-std::string process_escape_character(const char* str) {
-    std::string res{};
-    std::string_view str_view{str};
-    bool contain_space = str_view.end() != std::find(str_view.begin(), str_view.end(), ' ');
-    if (contain_space) { res.push_back('\"'); }
-    while (*str != '\0') {
-        res.push_back(*str);
-        str++;
-    }
-    if (contain_space) { res.push_back('\"'); }
-    return res;
-}
-template<typename... Argv>
-int exec_l(const char* path, Argv... argv){
-    auto args = std::vector<const char*>{argv...};
-    std::vector<std::string> processed_args(args.size());
-    std::transform(args.begin(), args.end(),
-        processed_args.begin(),
-        process_escape_character
-    );
-    std::transform(processed_args.begin(), processed_args.end(),
-        args.begin(),
-        [](auto& str) { return str.data(); }
-    );
-    args.push_back(NULL);
-    return spawnv(_P_WAIT, path, args.data());
-}
-int exec_v(const char* path, char* argv[]) {
-    std::vector<std::string> processed_args{};
-    auto p = argv;
-    while (*p != nullptr) {
-        auto& arg = *p;
-        p++;
-        processed_args.push_back(
-            process_escape_character(arg)
-        );
-    }
-    std::vector<char*> args(processed_args.size()+1);
-    std::transform(processed_args.begin(), processed_args.end(),
-        args.begin(),
-        [](auto& s) { return s.data(); }
-    );
-    args.back() = NULL;
-    return spawnv(_P_WAIT, path, args.data());
-}
-template<typename... Argv>
-int exec_lp(const char* path, Argv... argv){
-    auto args = std::vector<const char*>{ argv... };
-    std::vector<std::string> processed_args(args.size());
-    std::transform(args.begin(), args.end(),
-        processed_args.begin(),
-        process_escape_character
-    );
-    std::transform(processed_args.begin(), processed_args.end(),
-        args.begin(),
-        [](auto& str) { return str.data(); }
-    );
-    args.push_back(NULL);
-    assert(args.size() > 1);
-    return spawnvp(_P_WAIT, path, args.data());
-}
-int exec_vp(const char* path, char* argv[]) {
-    std::vector<std::string> processed_args{};
-    auto p = argv;
-    while (*p != nullptr) {
-        auto& arg = *p;
-        p++;
-        processed_args.push_back(
-            process_escape_character(arg)
-        );
-    }
-    std::vector<char*> args(processed_args.size()+1);
-    std::transform(processed_args.begin(), processed_args.end(),
-        args.begin(),
-        [](auto& s) { return s.data(); }
-    );
-    args.back() = NULL;
-    return spawnvp(_P_WAIT, path, args.data());
-}
-template<typename... Argv>
-int fork_exec_lp(const char* path, Argv... argv) {
-    auto args = std::vector<const char*>{argv...};
-    std::vector<std::string> processed_args{};
-    for (auto& arg : args) {
-        processed_args.push_back(
-            process_escape_character(arg)
-        );
-        arg = processed_args.back().data();
-    }
-    args.push_back(NULL);
-    return spawnvp(_P_WAIT, path, args.data());
-}
 #else
-#include <unistd.h>
 #include <sys/wait.h>
-
-template<typename... Argv>
-int exec_l(const char* path, Argv... argv){
-    return execl(path, argv..., NULL);
-}
-int exec_v(const char* path, char** argv) {
-    return execv(path, argv);
-}
-template<typename... Argv>
-int exec_lp(const char* path, Argv... argv){
-    return execlp(path, argv..., NULL);
-}
-int exec_vp(const char* path, char** argv) {
-    return execvp(path, argv);
-}
-template<typename... Argv>
-int fork_exec_lp(const char* path, Argv... argv) {
-    pid_t ret = fork();
-    if (ret == 0) {
-        exec_lp(path, argv...);
-        exit(-1); // This should not be called.
-    }
-    else {
-        if (ret == -1) {
-            std::cerr << "fork failed" << std::endl;
-            return -1;
-        }
-        else {
-            int wstatus = 0;
-            wait(&wstatus);
-            return wstatus;
-        }
-    }
-}
+#include <unistd.h>
 #endif
 
-// Run a command whose arguments are only known at runtime. `args` must contain
-// argv[0]; the NULL terminator is appended here.
-int exec_args(const char* path, std::vector<std::string> args) {
-    std::vector<char*> raw{};
+namespace fs = std::filesystem;
+using Args = std::vector<std::string>;
+
+static std::vector<char*> raw_args(Args& args) {
+    std::vector<char*> raw;
     raw.reserve(args.size() + 1);
-    for (auto& arg : args) {
-        raw.push_back(arg.data());
-    }
+    for (auto& arg : args) raw.push_back(arg.data());
     raw.push_back(nullptr);
-    return exec_vp(path, raw.data());
+    return raw;
 }
 
-// Git's global options are accepted before the subcommand (`git -c k=v
-// submodule ...`). Strip them so the subcommand match below is not defeated by
-// their presence; the fall-through path still forwards the original argv.
-std::vector<std::string> strip_global_options(int argc, char* argv[]) {
-    static const std::unordered_set<std::string> takes_value{
-        "-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path"
-    };
-    static const std::unordered_set<std::string> standalone{
-        "--no-pager", "--paginate", "-p", "-P", "--no-replace-objects",
-        "--literal-pathspecs", "--no-optional-locks", "--bare"
-    };
+static int replace_process(const char* path, Args args) {
+    auto raw = raw_args(args);
+#if defined(_WIN32)
+    return _spawnv(_P_WAIT, path, raw.data());
+#else
+    execv(path, raw.data());
+    std::cerr << "cannot execute " << path << ": " << std::strerror(errno) << '\n';
+    return errno == ENOENT ? 127 : 126;
+#endif
+}
 
-    auto args = std::vector<std::string>{};
+static int run_child(const char* path, Args args) {
+#if defined(_WIN32)
+    auto raw = raw_args(args);
+    return _spawnv(_P_WAIT, path, raw.data());
+#else
+    const pid_t child = fork();
+    if (child < 0) {
+        std::cerr << "fork failed: " << std::strerror(errno) << '\n';
+        return 126;
+    }
+    if (child == 0) {
+        auto raw = raw_args(args);
+        execv(path, raw.data());
+        std::cerr << "cannot execute " << path << ": " << std::strerror(errno) << '\n';
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+    int status = 0;
+    while (waitpid(child, &status, 0) < 0) {
+        if (errno == EINTR) continue;
+        std::cerr << "waitpid failed: " << std::strerror(errno) << '\n';
+        return 126;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    return 126;
+#endif
+}
+
+struct Invocation {
+    Args command;
+    fs::path directory = fs::current_path();
+    bool interceptable = true;
+};
+
+static Invocation parse_invocation(int argc, char* argv[]) {
+    Invocation invocation;
     int i = 1;
     while (i < argc) {
-        auto arg = std::string{argv[i]};
-        if (takes_value.contains(arg)) {
-            i += 2;
-        }
-        else if (standalone.contains(arg) || arg.starts_with("--git-dir=") ||
-                 arg.starts_with("--work-tree=") || arg.starts_with("--namespace=") ||
-                 arg.starts_with("--exec-path=")) {
-            i += 1;
-        }
-        else {
+        const std::string arg = argv[i];
+        if (arg == "-C") {
+            if (++i >= argc) {
+                invocation.interceptable = false;
+                return invocation;
+            }
+            fs::path next = argv[i++];
+            invocation.directory = next.is_absolute() ? next : invocation.directory / next;
+            invocation.directory = fs::absolute(invocation.directory).lexically_normal();
+        } else if (arg.starts_with("-C") && arg.size() > 2) {
+            fs::path next = arg.substr(2);
+            invocation.directory = next.is_absolute() ? next : invocation.directory / next;
+            invocation.directory = fs::absolute(invocation.directory).lexically_normal();
+            ++i;
+        } else if (!arg.empty() && arg[0] == '-') {
+            // Global options can affect repository selection or helper Git calls.
+            // Delegate them unchanged until the helper interface models them.
+            invocation.interceptable = false;
+            return invocation;
+        } else {
             break;
         }
     }
-    for (; i < argc; i++) {
-        args.emplace_back(argv[i]);
+    for (; i < argc; ++i) invocation.command.emplace_back(argv[i]);
+    return invocation;
+}
+
+static fs::path absolute_from(const fs::path& base, const std::string& path) {
+    fs::path result = path;
+    return (result.is_absolute() ? result : base / result).lexically_normal();
+}
+
+static std::string repo_name_from_url(std::string url) {
+    while (!url.empty() && (url.back() == '/' || url.back() == '\\')) url.pop_back();
+    const auto slash = url.find_last_of("/\\:");
+    std::string name = slash == std::string::npos ? url : url.substr(slash + 1);
+    if (name.ends_with(".git")) name.resize(name.size() - 4);
+    return name;
+}
+
+struct ClonePlan {
+    std::string url;
+    std::optional<std::string> destination;
+    bool recursive = false;
+};
+
+static std::optional<ClonePlan> parse_clone(const Args& args) {
+    ClonePlan plan;
+    Args operands;
+    bool options = true;
+    for (size_t i = 1; i < args.size(); ++i) {
+        const auto& arg = args[i];
+        if (options && arg == "--") { options = false; continue; }
+        if (options && (arg == "--recursive" || arg == "--recurse-submodules")) {
+            plan.recursive = true;
+        } else if (options && arg == "--no-recurse-submodules") {
+            plan.recursive = false;
+        } else if (options && !arg.empty() && arg[0] == '-') {
+            return std::nullopt;
+        } else {
+            operands.push_back(arg);
+        }
     }
-    return args;
+    if (operands.empty() || operands.size() > 2) return std::nullopt;
+    plan.url = operands[0];
+    if (operands.size() == 2) plan.destination = operands[1];
+    return plan;
+}
+
+struct InitPlan {
+    std::string directory = ".";
+    std::string branch = "main";
+};
+
+static std::optional<InitPlan> parse_init(const Args& args) {
+    InitPlan plan;
+    Args operands;
+    bool options = true;
+    for (size_t i = 1; i < args.size(); ++i) {
+        const auto& arg = args[i];
+        if (options && arg == "--") { options = false; continue; }
+        if (options && (arg == "-b" || arg == "--initial-branch")) {
+            if (++i >= args.size()) return std::nullopt;
+            plan.branch = args[i];
+        } else if (options && arg.starts_with("--initial-branch=")) {
+            plan.branch = arg.substr(std::string("--initial-branch=").size());
+            if (plan.branch.empty()) return std::nullopt;
+        } else if (options && !arg.empty() && arg[0] == '-') {
+            return std::nullopt;
+        } else {
+            operands.push_back(arg);
+        }
+    }
+    if (operands.size() > 1 || plan.branch.empty()) return std::nullopt;
+    if (!operands.empty()) plan.directory = operands[0];
+    return plan;
+}
+
+struct AddPlan { std::string url; std::optional<std::string> path; };
+static std::optional<AddPlan> parse_submodule_add(const Args& args) {
+    Args operands;
+    bool options = true;
+    for (size_t i = 2; i < args.size(); ++i) {
+        const auto& arg = args[i];
+        if (options && arg == "--") { options = false; continue; }
+        if (options && !arg.empty() && arg[0] == '-') return std::nullopt;
+        operands.push_back(arg);
+    }
+    if (operands.empty() || operands.size() > 2) return std::nullopt;
+    return AddPlan{operands[0], operands.size() == 2 ? std::optional{operands[1]} : std::nullopt};
+}
+
+struct UpdatePlan { Args helper_options; Args paths; };
+static std::optional<UpdatePlan> parse_submodule_update(const Args& args) {
+    UpdatePlan plan;
+    bool options = true;
+    bool init = false;
+    for (size_t i = 2; i < args.size(); ++i) {
+        const auto& arg = args[i];
+        if (options && arg == "--") { options = false; continue; }
+        if (options && arg == "--init") init = true;
+        else if (options && (arg == "--recursive" || arg == "--prompt" || arg == "--no-prompt"))
+            plan.helper_options.push_back(arg);
+        else if (options && !arg.empty() && arg[0] == '-') return std::nullopt;
+        else plan.paths.push_back(arg);
+    }
+    if (!init) return std::nullopt;
+    if (plan.paths.empty()) plan.paths.emplace_back(".");
+    return plan;
 }
 
 int main(int argc, char* argv[]) {
-    const auto args = strip_global_options(argc, argv);
-    const auto n = args.size();
-
-    if (n == 2 && args[0] == "clone" && args[1][0] != '-') {
-        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, args[1].c_str());
-    }
-    else if (n == 3 && args[0] == "clone" && args[1][0] != '-' && args[2][0] != '-') {
-        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, args[1].c_str(), "--worktree", args[2].c_str());
-    }
-    else if (n == 3 && args[0] == "submodule" && args[1] == "add" && args[2][0] != '-') {
-        fork_exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, args[2].c_str());
-        return exec_lp(GIT_PATH, GIT_PATH, "submodule", "add", args[2].c_str());
-    }
-    else if (n == 2 && args[0] == "init" && args[1][0] != '-') {
-        return exec_lp(PYTHON_PATH, PYTHON_PATH, GIT_REPO_PY_PATH, "--init", "--worktree", args[1].c_str());
-    }
-    // `submodule update --init [--recursive] [<path>...]`: any number of paths,
-    // defaulting to the whole worktree. git_submodule.py already accepts a list
-    // of submodule paths, so no path has to be handled here specially.
-    else if (n >= 3 && args[0] == "submodule" && args[1] == "update" &&
-             std::find(args.begin() + 2, args.end(), "--init") != args.end()) {
-        auto py_args = std::vector<std::string>{PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH};
-        auto paths = std::vector<std::string>{};
-        bool understood = true;
-
-        for (auto it = args.begin() + 2; it != args.end(); it++) {
-            if (*it == "--init") {
-                continue;
+    const auto invocation = parse_invocation(argc, argv);
+    if (invocation.interceptable && !invocation.command.empty()) {
+        const auto& args = invocation.command;
+        if (args[0] == "clone") {
+            if (auto plan = parse_clone(args)) {
+                const std::string destination = plan->destination.value_or(repo_name_from_url(plan->url));
+                Args helper{PYTHON_PATH, GIT_REPO_PY_PATH, "--worktree",
+                            absolute_from(invocation.directory, destination).string()};
+                if (plan->recursive) helper.emplace_back("--recursive");
+                helper.emplace_back("--");
+                helper.emplace_back(plan->url);
+                return replace_process(PYTHON_PATH, std::move(helper));
             }
-            else if (*it == "--recursive" || *it == "--no-prompt" || *it == "--prompt") {
-                py_args.push_back(*it);
+        } else if (args[0] == "init") {
+            if (auto plan = parse_init(args)) {
+                Args helper{PYTHON_PATH, GIT_REPO_PY_PATH, "--init", "--worktree",
+                            absolute_from(invocation.directory, plan->directory).string(),
+                            "--initial-branch", plan->branch};
+                return replace_process(PYTHON_PATH, std::move(helper));
             }
-            else if ((*it)[0] == '-') {
-                // An option git_submodule.py does not model (--depth, --remote,
-                // --jobs, ...). Hand the whole command back to git rather than
-                // silently ignoring it.
-                understood = false;
-                break;
+        } else if (args.size() >= 2 && args[0] == "submodule" && args[1] == "add") {
+            if (auto plan = parse_submodule_add(args)) {
+                const auto destination = plan->path.value_or(repo_name_from_url(plan->url));
+                Args helper{PYTHON_PATH, GIT_REPO_PY_PATH, "--worktree",
+                            absolute_from(invocation.directory, destination).string(), "--",
+                            plan->url};
+                const int status = run_child(PYTHON_PATH, std::move(helper));
+                if (status != 0) return status;
+                Args original;
+                original.reserve(argc);
+                original.emplace_back(GIT_PATH);
+                for (int i = 1; i < argc; ++i) original.emplace_back(argv[i]);
+                return replace_process(GIT_PATH, std::move(original));
             }
-            else {
-                paths.push_back(*it);
+        } else if (args.size() >= 2 && args[0] == "submodule" && args[1] == "update") {
+            if (auto plan = parse_submodule_update(args)) {
+                Args helper{PYTHON_PATH, GIT_REPO_SUBMODULE_PY_PATH, "--working-directory",
+                            invocation.directory.string()};
+                helper.insert(helper.end(), plan->helper_options.begin(), plan->helper_options.end());
+                helper.emplace_back("--");
+                helper.insert(helper.end(), plan->paths.begin(), plan->paths.end());
+                return replace_process(PYTHON_PATH, std::move(helper));
             }
-        }
-
-        if (understood) {
-            if (paths.empty()) {
-                paths.emplace_back(".");
-            }
-            py_args.insert(py_args.end(), paths.begin(), paths.end());
-            return exec_args(PYTHON_PATH, py_args);
         }
     }
 
-    if (exists(std::filesystem::path(GIT_PATH))) {
-        return exec_vp(GIT_PATH, argv);
+    if (!fs::exists(GIT_PATH)) {
+        std::cerr << "path not exist: " << GIT_PATH << '\n';
+        return 127;
     }
-    std::cerr << std::format("path not exist: {}", GIT_PATH) << std::endl;
-    return 0;
+    Args original;
+    original.reserve(argc);
+    original.emplace_back(GIT_PATH);
+    for (int i = 1; i < argc; ++i) original.emplace_back(argv[i]);
+    return replace_process(GIT_PATH, std::move(original));
 }

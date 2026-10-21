@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(git_repo)
 
+include(CTest)
+
 add_executable(git_repo
     git_repo.cpp)
 
@@ -63,3 +65,11 @@ add_executable(git_build
 target_compile_features(git_build PUBLIC cxx_std_20)
 
 target_compile_definitions(git_build PUBLIC GIT_BUILD_PY_PATH="${CMAKE_CURRENT_SOURCE_DIR}/git_build.py")
+
+if (BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME git_repo_python
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_git_repo.py)
+    add_test(NAME git_wrapper_routing
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_git_wrapper.py)
+endif()

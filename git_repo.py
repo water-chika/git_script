@@ -233,12 +233,19 @@ def update_submodule(git_path, submodule, recursive, repo_dir, parent_url, promp
         # commit differs) or 'U' (merge conflict); the rest is the sha.
         if commit[0] in '-+U':
             commit = commit[1:]
-        fun(git_path, submodule["url"], submodule["path"], commit=commit, recursive=recursive, repo_dir=repo_dir, prompt=prompt)
+        if fun(git_path, submodule["url"], submodule["path"], commit=commit,
+               recursive=recursive, repo_dir=repo_dir, prompt=prompt) is False:
+            return False
         options = submodule_git_options(submodule["url"])
-        subprocess.run([git_path, *options, "submodule", "update", "--init", submodule["path"]])
-        subprocess.run([git_path, *options, "submodule", "update", submodule["path"]])
-    else:
-        print("submodule commit get fail")
+        result = subprocess.run(
+            [git_path, *options, "submodule", "update", "--init", submodule["path"]]
+        )
+        if result.returncode != 0:
+            return False
+        result = subprocess.run([git_path, *options, "submodule", "update", submodule["path"]])
+        return result.returncode == 0
+    print("submodule commit get fail")
+    return False
 
 def for_submodules(git_path, submodules, recursive, repo_dir, parent_url, prompt):
     args_vector = []
@@ -365,8 +372,9 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt, platform=N
                 raise RuntimeError("git command failed")
         except:
             print("There is exception, clean repo")
-            shutil.rmtree(repo)
-            return
+            if repo.exists():
+                shutil.rmtree(repo)
+            return False
         res = subprocess.run(
                 [git_path, '-C', repo, 'branch', '--remote', '--list', 'origin/HEAD'],
                 capture_output=True,encoding='utf-8'
@@ -391,10 +399,13 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt, platform=N
         commit = remote + '/HEAD'
 
     if not (worktree / '.git').exists():
-        subprocess.run(
+        result = subprocess.run(
                 [git_path, "-C", repo, "worktree", "add", "-f", '--detach', worktree, commit],
-                capture_output=True,encoding='utf-8'
+                capture_output=True, encoding='utf-8'
                 )
+        if result.returncode != 0:
+            print(result.stderr)
+            return False
 
     if recursive:
         if not (worktree / '.git').exists():
@@ -409,6 +420,7 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt, platform=N
             update_submodules(git_path, recursive, repo_dir=repo_dir, url=url, prompt=prompt)
         finally:
             os.chdir(orig_wd)
+    return True
 
 def is_in_git_worktree(path):
     path = path.absolute()
@@ -486,6 +498,7 @@ def main():
     parser.add_argument('--recursive', action='store_true', default=False)
     parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument('--init', action='store_true', default=False)
+    parser.add_argument('--initial-branch', type=str, default='main')
     parser.add_argument('--cores')
     parser.add_argument('--repo_dir', type=str, default=None,
                          help="override the bare-repos root (else "
@@ -514,15 +527,22 @@ def main():
     if args.init:
         if args.worktree == None:
             print("--worktree <worktree> is required")
-            return
-        worktree =pathlib.Path(args.worktree).absolute()
+            return 2
+        worktree = pathlib.Path(args.worktree).absolute()
         repo_name = worktree.name
         if (repo_dir / repo_name).exists():
             print("repo exists, do not init existing repo")
-            return
-        subprocess.run([git_path, 'init', '--bare', '-b', 'main', repo_dir / repo_name])
-        subprocess.run([git_path, '-C', repo_dir / repo_name, 'worktree', 'add', '--orphan', '-b', 'main', '-f', worktree])
-        return
+            return 1
+        init_result = subprocess.run(
+            [git_path, 'init', '--bare', '-b', args.initial_branch, repo_dir / repo_name]
+        )
+        if init_result.returncode != 0:
+            return init_result.returncode
+        worktree_result = subprocess.run(
+            [git_path, '-C', repo_dir / repo_name, 'worktree', 'add', '--orphan',
+             '-b', args.initial_branch, '-f', worktree]
+        )
+        return worktree_result.returncode
 
     config["git_path"] = git_path
     config["url"] = args.url
@@ -548,6 +568,6 @@ def main():
     config['prompt'] = args.prompt
     config['platform'] = args.platform
     print(config)
-    fun(**config)
+    return 0 if fun(**config) is not False else 1
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
