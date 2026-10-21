@@ -20,6 +20,86 @@ class CheckoutMode(Enum):
     DISABLED = auto()
 
 
+REPOS_ROOT_ENV = "GIT_REPO_REPOS_ROOT"
+WORKTREES_ROOT_ENV = "GIT_REPO_WORKTREES_ROOT"
+GIT_PATH_ENV = "GIT_REPO_GIT_PATH"
+WINDOWS_MAX_PATH = 260
+
+
+def _is_windows(platform=None):
+    return (platform or sys.platform).startswith("win")
+
+
+def default_repo_dir(platform=None):
+    return pathlib.Path("C:/repos") if _is_windows(platform) else pathlib.Path("/mnt/repos")
+
+
+def default_worktrees_dir(platform=None):
+    return pathlib.Path("C:/worktrees") if _is_windows(platform) else pathlib.Path("/mnt/worktrees")
+
+
+def default_git_path(platform=None):
+    if _is_windows(platform):
+        return pathlib.Path("C:/Program Files/Git/cmd/git.exe")
+    return pathlib.Path("/usr/bin/git")
+
+
+def _resolve_root(cli_value, file_config, config_key, env_key, default_fn,
+                  env=None, platform=None):
+    env = env if env is not None else os.environ
+    if cli_value:
+        return pathlib.Path(cli_value)
+    if env.get(env_key):
+        return pathlib.Path(env[env_key])
+    if file_config and file_config.get(config_key):
+        return pathlib.Path(file_config[config_key])
+    return default_fn(platform)
+
+
+def resolve_repo_dir(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "repo_dir", REPOS_ROOT_ENV,
+                         default_repo_dir, env=env, platform=platform)
+
+
+def resolve_worktrees_dir(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "worktree_dir", WORKTREES_ROOT_ENV,
+                         default_worktrees_dir, env=env, platform=platform)
+
+
+def resolve_git_path(file_config, cli_value=None, env=None, platform=None):
+    return _resolve_root(cli_value, file_config, "git_path", GIT_PATH_ENV,
+                         default_git_path, env=env, platform=platform)
+
+
+def check_worktree_path_length(worktree, platform=None, limit=WINDOWS_MAX_PATH):
+    if not _is_windows(platform):
+        return True, "no legacy MAX_PATH limit on this platform"
+    length = len(str(pathlib.Path(worktree)))
+    if length >= limit:
+        return False, f"{worktree} is at/over the legacy Windows MAX_PATH limit ({limit}); enable git core.longpaths or use a shorter worktrees root"
+    return True, f"{worktree} is under the {limit}-character legacy limit"
+
+
+def check_symlink_capable(base_dir, platform=None, symlink_fn=None):
+    if not _is_windows(platform):
+        return True, "not Windows"
+    probe_target = pathlib.Path(base_dir) / ".git_repo_symlink_probe_target"
+    probe_link = pathlib.Path(base_dir) / ".git_repo_symlink_probe_link"
+    do_symlink = symlink_fn or (lambda link, target: link.symlink_to(target))
+    try:
+        probe_target.write_text("probe\n")
+        do_symlink(probe_link, probe_target)
+        return True, "symlink creation succeeded"
+    except OSError as exc:
+        return False, f"could not create a symlink under {base_dir}: {exc}. Enable Developer Mode"
+    finally:
+        for path in (probe_link, probe_target):
+            try:
+                path.unlink()
+            except OSError:
+                pass
+
+
 def run(*args) -> int:
     """Execute shell command, print it, return exit code (output not captured)."""
     print(*args)
@@ -103,14 +183,17 @@ def init_submodule(name, url, path):
     return commit
 
 
-def update_submodule(submodule, recursive, repo_dir, parent_url):
+def update_submodule(submodule, recursive, repo_dir, parent_url,
+                     git_path=None, prompt=True):
     print(f"Updating submodule: {submodule}")
     submodule["url"] = resolve_submodule_url(submodule["url"], parent_url)
     print(f"Resolved submodule URL: {submodule['url']}")
 
     commit = init_submodule(**submodule)
-    fun(submodule["url"], submodule["path"], commit=commit,
-        recursive=recursive, repo_dir=repo_dir)
+    if commit is None:
+        return False
+    return fun(submodule["url"], submodule["path"], commit=commit,
+               recursive=recursive, repo_dir=repo_dir)
 
 
 def for_submodules(submodules, recursive, repo_dir, parent_url):
@@ -374,8 +457,17 @@ def apply_sparse_checkout(worktree, checkout, checkout_commit):
     run(f'git -C {worktree} checkout {checkout_commit}')
 
 
-def fun(url, worktree, commit, recursive, repo_dir, checkout=CheckoutMode.DEFAULT):
+def fun(url, worktree, commit, recursive, repo_dir, checkout=CheckoutMode.DEFAULT,
+        git_path=None, prompt=True, platform=None):
     worktree = pathlib.Path(worktree).absolute()
+    ok, detail = check_worktree_path_length(worktree, platform=platform)
+    if not ok:
+        print("WARNING:", detail)
+    ok, detail = check_symlink_capable(
+        worktree.parent if worktree.parent.exists() else repo_dir,
+        platform=platform)
+    if not ok:
+        print("NOTE:", detail)
     repo, remote_name = get_repo(url, repo_dir)
 
     # no checkout implies no recursive
@@ -435,12 +527,16 @@ def fun(url, worktree, commit, recursive, repo_dir, checkout=CheckoutMode.DEFAUL
                 run(f'git -C {worktree} checkout {checkout_commit}')
 
     if recursive:
+        if not (worktree / '.git').exists():
+            print("skip recursion, worktree was not created:", worktree)
+            return False
         orig_wd = pathlib.Path('.').absolute()
         try:
             os.chdir(worktree)
             update_submodules(recursive, repo_dir=repo_dir, url=url)
         finally:
             os.chdir(orig_wd)
+    return True
 
 
 def is_in_git_worktree(path):
@@ -513,64 +609,89 @@ def load_config():
     return config
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description='''Clone git repositories using bare repo + worktree model.
+        description='Clone repositories using the central bare repo + worktree model.')
+    parser.add_argument('url', nargs='?')
+    parser.add_argument('-c', '--commit', default='')
+    parser.add_argument('-w', '--worktree')
+    parser.add_argument('--recursive', action='store_true', default=False)
+    parser.add_argument('--no-recursive', action='store_false', dest='recursive')
+    parser.add_argument('--no-checkout', action='store_true')
+    parser.add_argument('--sparse-checkout', metavar='PRESET')
+    parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--init', action='store_true', default=False)
+    parser.add_argument('--initial-branch', default='main')
+    parser.add_argument('--git_path')
+    parser.add_argument('--repo_dir')
+    parser.add_argument('--worktrees_dir')
+    parser.add_argument('--platform', help=argparse.SUPPRESS)
+    parser.add_argument('--cores')
+    args = parser.parse_args(argv)
 
-All bare repositories are stored in a central directory (repo_dir from config.json),
-and worktrees are created as lightweight checkouts sharing the same object store.
-This saves disk space when working with multiple worktrees of the same repository.
-
-Features:
-  - Automatic bare repo reuse for same repository URLs
-  - Recursive submodule initialization with worktree model
-  - Sparse-checkout presets defined in config.json
-  - Worktree-level git config isolation''')
-    parser.add_argument('url', help='Git repository URL')
-    parser.add_argument('-c', '--commit', default='',
-                        help='Commit SHA to checkout (default: remote HEAD)')
-    parser.add_argument('-w', '--worktree',
-                        help='Worktree path (default: repo name from URL)')
-    parser.add_argument('--no-recursive', action='store_true',
-                        help='Do not init submodules recursively')
-    parser.add_argument('--no-checkout', action='store_true',
-                        help='Skip checkout (implies --no-recursive)')
-    parser.add_argument('--sparse-checkout', metavar='PRESET',
-                        help='Use sparse-checkout preset from config.json (new worktrees only)')
-    args = parser.parse_args()
-
-    fconfig = load_config()
-    if fconfig is None:
+    file_config = load_config()
+    if file_config is None:
         print("Error: config.json not found or invalid", file=sys.stderr)
-        sys.exit(1)
-    repo_dir = pathlib.Path(fconfig["repo_dir"]).absolute()
+        return 1
+    repo_dir = resolve_repo_dir(file_config, args.repo_dir, platform=args.platform)
+    worktrees_dir = resolve_worktrees_dir(
+        file_config, args.worktrees_dir, platform=args.platform)
+    git_path = resolve_git_path(file_config, args.git_path, platform=args.platform)
 
-    config = {}
-    config["url"] = args.url
-    if args.worktree is None:
-        name = repo_name_from_url(args.url)
-        config["worktree"] = pathlib.Path(name).absolute()
-    else:
-        config["worktree"] = pathlib.Path(args.worktree).absolute()
-    config["recursive"] = not args.no_recursive
-    config["repo_dir"] = repo_dir
-    config['commit'] = args.commit
+    if args.init:
+        if args.worktree is None:
+            print("--worktree <worktree> is required", file=sys.stderr)
+            return 2
+        worktree = pathlib.Path(args.worktree).absolute()
+        repo = repo_dir / worktree.name
+        if repo.exists():
+            print("repo exists, do not init existing repo", file=sys.stderr)
+            return 1
+        result = subprocess.run(
+            [git_path, 'init', '--bare', '-b', args.initial_branch, repo])
+        if result.returncode != 0:
+            return result.returncode
+        result = subprocess.run(
+            [git_path, '-C', repo, 'worktree', 'add', '--orphan', '-b',
+             args.initial_branch, '-f', worktree])
+        return result.returncode
 
-    # Validate sparse-checkout option
-    config['checkout'] = CheckoutMode.DEFAULT
+    if args.url is None:
+        parser.error('url is required unless --init is used')
+    worktree = pathlib.Path(
+        args.worktree if args.worktree is not None else repo_name_from_url(args.url)
+    ).absolute()
+    try:
+        worktree.relative_to(worktrees_dir)
+    except ValueError:
+        print(f"note: {worktree} is outside configured worktrees root {worktrees_dir}")
+
+    checkout = CheckoutMode.DEFAULT
     if args.no_checkout:
-        config['checkout'] = CheckoutMode.DISABLED
+        checkout = CheckoutMode.DISABLED
     elif args.sparse_checkout is not None:
-        sparse_presets = fconfig.get('sparse_checkout_presets', {})
-        if args.sparse_checkout not in sparse_presets:
-            print(
-                f'Error: sparse-checkout preset "{args.sparse_checkout}" not found', file=sys.stderr)
-            print(
-                f'Available: {list(sparse_presets.keys())}', file=sys.stderr)
-            sys.exit(1)
-        else:
-            config['checkout'] = sparse_presets[args.sparse_checkout]
+        presets = file_config.get('sparse_checkout_presets', {})
+        if args.sparse_checkout not in presets:
+            print(f'Error: sparse-checkout preset "{args.sparse_checkout}" not found',
+                  file=sys.stderr)
+            return 1
+        checkout = presets[args.sparse_checkout]
 
+    config = {
+        'url': args.url,
+        'worktree': worktree,
+        'recursive': args.recursive,
+        'repo_dir': repo_dir,
+        'commit': args.commit,
+        'checkout': checkout,
+        'git_path': git_path,
+        'prompt': args.prompt,
+        'platform': args.platform,
+    }
     print(config)
-    fun(**config)
+    return 0 if fun(**config) is not False else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

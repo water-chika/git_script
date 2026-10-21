@@ -1,63 +1,58 @@
 #!/usr/bin/env python
 
-import git_repo
-import pathlib
-import os
 import argparse
 import json
-from urllib.parse import urljoin
+import os
+import pathlib
 
-if __name__ == '__main__':
+import git_repo
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description='''Initialize and update git submodules using worktree model.
+        description='Initialize and update submodules using the worktree model.')
+    parser.add_argument('submodules', nargs='*', help='Submodule paths (default: all)')
+    parser.add_argument('--recursive', action='store_true', default=False)
+    parser.add_argument('--no-recursive', action='store_false', dest='recursive')
+    parser.add_argument('--prompt', action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument('--working-directory', default='.')
+    parser.add_argument('--cores')
+    args = parser.parse_args(argv)
 
-This script initializes submodules in the current git worktree, using the same
-bare repo + worktree approach as git_repo. Submodules are stored in the central
-repo_dir and linked via worktrees.
-
-If no submodule paths are specified, all registered submodules will be updated.''')
-    parser.add_argument('submodules', nargs='*',
-                        help='Submodule paths to init (default: all)')
-    parser.add_argument('--no-recursive', action='store_true',
-                        help='Do not recurse into nested submodules')
-    args = parser.parse_args()
-
-    config = None
-    config_file = pathlib.Path(os.path.abspath(__file__)).resolve().parent / "config.json"
+    config_file = pathlib.Path(__file__).resolve().parent / 'config.json'
     if not config_file.exists():
-        print("config file not exist!")
-    else:
-        with open(config_file, "r") as config_file:
-            config = json.load(config_file)
-    assert(config != None)
-    repo_dir = pathlib.Path(config["repo_dir"]).absolute()
+        print('config file not exist!')
+        return 1
+    with open(config_file) as file:
+        config = json.load(file)
+    repo_dir = pathlib.Path(config['repo_dir']).absolute()
+    git_path = git_repo.resolve_git_path(config)
 
-    working_dir = pathlib.Path('.').absolute()
-
+    working_dir = pathlib.Path(args.working_directory).absolute()
     if not git_repo.is_in_git_worktree(working_dir):
-        print("not in a git worktree")
-        exit(1)
-    git_worktree_path = git_repo.git_worktree_path(working_dir)
-    registerred_submodules = git_repo.parse_submodules(git_worktree_path / '.gitmodules')
-    git_config_path = git_repo.git_dir(working_dir) / 'config'
-    print(git_config_path)
-    parent_url = git_repo.get_remote_url(git_config_path)
-    print(git_repo.git_dir(working_dir))
+        print('not in a git worktree')
+        return 1
+    os.chdir(working_dir)
+    worktree = git_repo.git_worktree_path(working_dir)
+    registered = git_repo.parse_submodules(worktree / '.gitmodules')
+    parent_url = git_repo.get_remote_url(git_repo.git_dir(working_dir) / 'config')
 
-    for submodule in args.submodules:
-        for registerred_submodule in registerred_submodules:
-            request_path = working_dir / submodule
-            registerred_path = git_worktree_path / registerred_submodule["path"]
-            if registerred_path.is_relative_to(request_path):
-                config = {}
-                submodule_dict = {}
-                submodule_dict["name"] = registerred_submodule["name"]
-                submodule_dict["url"] = registerred_submodule["url"]
-                submodule_dict["path"] = registerred_path
-                config["submodule"] = submodule_dict
-                config["recursive"] = not args.no_recursive
-                config["repo_dir"] = repo_dir
-                config["parent_url"] = parent_url
-                print(config)
-                git_repo.update_submodule(**config)
+    requested = args.submodules or ['.']
+    for requested_path in requested:
+        request_root = (working_dir / requested_path).resolve()
+        for submodule in registered:
+            submodule_path = (worktree / submodule['path']).resolve()
+            if submodule_path.is_relative_to(request_root):
+                item = dict(submodule)
+                item['path'] = submodule_path
+                if git_repo.update_submodule(
+                        item, recursive=args.recursive, repo_dir=repo_dir,
+                        parent_url=parent_url, git_path=git_path,
+                        prompt=args.prompt) is False:
+                    return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())
