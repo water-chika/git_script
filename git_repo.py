@@ -137,8 +137,8 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt):
         if url in remotes.values():
             return repo,url_remotes[url]
         elif same_repo_url_in(url, remotes.values()):
-            add_url_to_repo(git_path, url, repo)
-            return repo,url_remotes[url]
+            remote_name = add_url_to_repo(git_path, url, repo)
+            return repo,remote_name
         elif prompt:
             print("url: ", url, "repo remotes: ", remotes)
             try:
