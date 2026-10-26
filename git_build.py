@@ -8,6 +8,11 @@ import os
 
 def subprocess_run(*args, **kwargs):
     print(*args, kwargs)
+    if len(args) > 0:
+        process_call = args[0]
+        for s in process_call:
+            print(s, end=' ')
+        print('\n')
     proc = subprocess.Popen(*args, **kwargs)
     try:
         outs, errs = proc.communicate()
