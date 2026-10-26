@@ -13,3 +13,8 @@ cmake -S . -B /builds/git_script
 Add ```/builds/git_script/``` or ```/builds/git_script/Debug``` to env ```PATH``` before actually git path.
 
 Git command will be wrapped because /builds/git_script is before actually git path.
+
+## TODOs
+
+Let LAN peers could clone from LAN before fetching update from remote.
+
