@@ -114,7 +114,7 @@ def add_url_to_repo(git_path, url, repo):
             )
     return remote_name
 
-def get_repo_and_remote(git_path, url, repo_dir, prompt):
+def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
     name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
@@ -159,7 +159,7 @@ def exists_commit(git_path, repo, commit):
             )
     return 0 == res.returncode
 
-def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
+def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt, peers):
     worktree = pathlib.Path(worktree).absolute()
     repo,remote = get_repo_and_remote(git_path, url, repo_dir, prompt)
     if commit == None or commit == '':
@@ -168,6 +168,27 @@ def fun(git_path, url, worktree, commit, recursive, repo_dir, prompt):
         try:
             subprocess.run([git_path, "init", "--bare", repo])
             subprocess.run([git_path, "-C", repo, "remote", "add", "origin", url])
+            try:
+                print(peers)
+                for peer in peers:
+                    print("try", peer)
+                    repo_name = repo_name_from_url(url)
+                    print(peer['host'])
+                    cmd = ['ssh', peer['host'], 'git', '-C', peer['repo_dir']+'/' +repo_name, 'rev-list', '--quiet', '--max-count', '1', commit]
+                    print(cmd)
+                    res = subprocess.run(
+                            ['ssh', peer['host'], 'git', '-C', peer['repo_dir']+'/'+repo_name, 'rev-list', '--quiet', '--max-count', '1', commit]
+                            )
+                    print('res:', res.returncode)
+                    if 0 == res.returncode:
+                        print('clone frome', peer['host'])
+                        subprocess.run([git_path, "-C", repo, "remote", "add", "test", peer['host']+':'+peer['repo_dir']+'/'+repo_name])
+                        subprocess.run(
+                                [git_path, '-C', repo, 'fetch', "test"]
+                                )
+                        break
+            except:
+                pass
             fetch_res = subprocess.run(
                     [git_path, '-C', repo, 'fetch']
                     )
@@ -290,6 +311,7 @@ def main():
     file_config = load_config()
     assert(file_config != None)
     repo_dir = pathlib.Path(file_config["repo_dir"]).absolute()
+    peers = file_config["peers"]
 
 
     config = {}
@@ -323,6 +345,7 @@ def main():
     config["repo_dir"] = repo_dir
     config['commit'] = args.commit
     config['prompt'] = args.prompt
+    config['peers'] = peers
     print(config)
     fun(**config)
 if __name__ == '__main__':

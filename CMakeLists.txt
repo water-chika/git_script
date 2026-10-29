@@ -27,7 +27,8 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/config.json"
 "{
     \"repo_dir\": \"/repos\",
     \"build_dir\": \"/builds\",
-    \"git_path\": \"${GIT_PATH}\"
+    \"git_path\": \"${GIT_PATH}\",
+    \"peers\": []
 }"
 )
 endif()
