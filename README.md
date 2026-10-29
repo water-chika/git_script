@@ -18,3 +18,15 @@ Git command will be wrapped because /builds/git_script is before actually git pa
 
 Let LAN peers could clone from LAN before fetching update from remote.
 
+## Windows Path
+
+```
+New-ItemProperty `
+  -Path "HKLM:\SOFTWARE\OpenSSH" `
+  -Name DefaultShell `
+  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" `
+  -PropertyType String `
+  -Force
+
+Restart-Service sshd
+```
