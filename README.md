@@ -21,10 +21,11 @@ Let LAN peers could clone from LAN before fetching update from remote.
 ## Windows Path
 
 ```
+winget install --scope machine --id Microsoft.PowerShell --source winget
 New-ItemProperty `
   -Path "HKLM:\SOFTWARE\OpenSSH" `
   -Name DefaultShell `
-  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" `
+  -Value (Get-Command pwsh).Source `
   -PropertyType String `
   -Force
 
