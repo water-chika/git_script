@@ -14,6 +14,25 @@ Add ```/builds/git_script/``` or ```/builds/git_script/Debug``` to env ```PATH``
 
 Git command will be wrapped because /builds/git_script is before actually git path.
 
+### Bash
+
+Add below statements to ```.bashrc```:
+
+```
+export PATH="/builds/git_script:$PATH"
+```
+
+### PowerShell+Windows
+
+Run below statements with administrator:
+
+```
+$BuildPath = "C:/builds/git_script/Debug"
+$Path = [System.Environment]::GetEnvironmentVariable("PATH", [System.EnvironmentVariableTarget]::Machine)
+$Path = $BuildPath + ";" + $Path
+[System.Environment]::SetEnvironmentVariable("PATH", $Path, [System.EnvironmentVariableTarget]::Machine) 
+```
+
 ## TODOs
 
 Let LAN peers could clone from LAN before fetching update from remote.
