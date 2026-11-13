@@ -311,7 +311,9 @@ def main():
     file_config = load_config()
     assert(file_config != None)
     repo_dir = pathlib.Path(file_config["repo_dir"]).absolute()
-    peers = file_config["peers"]
+    peers = None
+    if "peers" in file_config:
+        peers = file_config["peers"]
 
 
     config = {}
