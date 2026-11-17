@@ -118,6 +118,21 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
     name = repo_name_from_url(url)
     repo = repo_dir / name
     repo_index = 0
+    # First, check if the url is in a repo
+    while repo.exists():
+        config = repo / 'config'
+        with open(config, 'r') as file:
+            lines = file.readlines()
+            for line in lines:
+                if line.startswith('[remote'):
+                    remote_name = line.split('"')[1]
+                elif remote_name not in remotes and \
+                line.startswith('\turl = '):
+                    this_url = line.split(' ')[2].rstrip()
+                    if this_url == url:
+                        return repo, remote_name
+    # Then, check if the url is a same repo url
+    repo_index = 0
     while repo.exists():
         config = repo / 'config'
         remotes = {}
@@ -133,13 +148,27 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
                     this_url = line.split(' ')[2].rstrip()
                     remotes[remote_name] = this_url
                     url_remotes[this_url] = remote_name
-        print(remotes, url_remotes)
-        if url in remotes.values():
-            return repo,url_remotes[url]
-        elif same_repo_url_in(url, remotes.values()):
+        if same_repo_url_in(url, remotes.values()):
             remote_name = add_url_to_repo(git_path, url, repo)
             return repo,remote_name
-        elif prompt:
+    # Then, ask user to check if the url is same repo
+    repo_index = 0
+    while repo.exists():
+        config = repo / 'config'
+        remotes = {}
+        remote_name = None
+        url_remotes = {}
+        with open(config, 'r') as file:
+            lines = file.readlines()
+            for line in lines:
+                if line.startswith('[remote'):
+                    remote_name = line.split('"')[1]
+                elif remote_name not in remotes and \
+                line.startswith('\turl = '):
+                    this_url = line.split(' ')[2].rstrip()
+                    remotes[remote_name] = this_url
+                    url_remotes[this_url] = remote_name
+        if prompt:
             print("url: ", url, "repo remotes: ", remotes)
             try:
                 import inputimeout
@@ -151,6 +180,7 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
                 pass
         repo_index = repo_index + 1
         repo = repo_dir / (name + '_{}').format(repo_index)
+    # Finally, use a new repo
     return repo,'origin'
 
 def exists_commit(git_path, repo, commit):
