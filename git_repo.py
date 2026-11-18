@@ -133,7 +133,10 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
                     this_url = line.split(' ')[2].rstrip()
                     if this_url == url:
                         return repo, remote_name
+        repo_index = repo_index + 1
+        repo = repo_dir / (name + '_{}').format(repo_index)
     # Then, check if the url is a same repo url
+    repo = repo_dir / name
     repo_index = 0
     while repo.exists():
         config = repo / 'config'
@@ -153,7 +156,10 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
         if same_repo_url_in(url, remotes.values()):
             remote_name = add_url_to_repo(git_path, url, repo)
             return repo,remote_name
+        repo_index = repo_index + 1
+        repo = repo_dir / (name + '_{}').format(repo_index)
     # Then, ask user to check if the url is same repo
+    repo = repo_dir / (name + '_{}').format(repo_index)
     repo_index = 0
     while repo.exists():
         config = repo / 'config'
