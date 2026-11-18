@@ -121,6 +121,8 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
     # First, check if the url is in a repo
     while repo.exists():
         config = repo / 'config'
+        remotes = {}
+        remote_name = None
         with open(config, 'r') as file:
             lines = file.readlines()
             for line in lines:
