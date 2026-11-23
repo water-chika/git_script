@@ -28,6 +28,10 @@ if __name__ == '__main__':
 
     working_dir = pathlib.Path('.').absolute()
 
+    peers = None
+    if "peers" in config:
+        peers = config["peers"]
+
     if not git_repo.is_in_git_worktree(working_dir):
         print("not in a git worktree")
         exit(1)
@@ -53,5 +57,6 @@ if __name__ == '__main__':
                 config["repo_dir"] = repo_dir
                 config["parent_url"] = parent_url
                 config["prompt"] = args.prompt
+                config["peers"] = peers
                 print(config)
                 git_repo.update_submodule(**config)
