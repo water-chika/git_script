@@ -159,7 +159,7 @@ def get_repo_and_remote(git_path, url, repo_dir, prompt, peers=None):
         repo_index = repo_index + 1
         repo = repo_dir / (name + '_{}').format(repo_index)
     # Then, ask user to check if the url is same repo
-    repo = repo_dir / (name + '_{}').format(repo_index)
+    repo = repo_dir / name
     repo_index = 0
     while repo.exists():
         config = repo / 'config'
